@@ -1,0 +1,16 @@
+[package]
+name = "google_bigquery_v2"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+google-bigquery2 = "5.0.2"
+serde_json = "1.0.95"
+tokio = "1.0.2"
+google_bigquery_v2_derive = { version = "0.0.0", path = "./google_bigquery_v2_derive" }
+chrono = "0.4.24"
+log = "0.4.17"
+nameof = "1.2.2"
+env_logger = "0.10.0"
