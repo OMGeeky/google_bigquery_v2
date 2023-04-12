@@ -22,17 +22,17 @@ pub struct DbInfos<'a> {
 
 #[tokio::test]
 async fn test_get_table_name() {
-    init_logger(LevelFilter::Debug);
+    init_logger();
     let pk = DbInfos::get_table_name();
-    println!("table name: {}", pk);
+    log::debug!("table name: {}", pk);
     assert_eq!("Infos", pk, "table name is not correct")
 }
 
 #[tokio::test]
 async fn test_get_query_fields() {
-    init_logger(LevelFilter::Debug);
+    init_logger();
     let fields = DbInfos::get_query_fields(true);
-    println!("fields: {:?}", fields);
+    log::debug!("fields: {:?}", fields);
     assert_eq!(6, fields.len(), "fields length is not correct");
     assert_eq!("Id", fields.get("row_id").unwrap(), );
     assert_eq!("info1", fields.get("info1").unwrap(), );
@@ -44,7 +44,7 @@ async fn test_get_query_fields() {
 
 #[tokio::test]
 async fn test_query_builder_1() {
-    init_logger(LevelFilter::Debug);
+    init_logger();
     let client = get_test_client().await;
     let query_builder: BigQueryBuilder<DbInfos> = DbInfos::query(&client);
     let query_builder: BigQueryBuilder<DbInfos> = query_builder
@@ -60,9 +60,9 @@ async fn test_query_builder_1() {
     WHERE info1 is NULL AND info3 = @__PARAM_0 \
     ORDER BY info ASC LIMIT 1000",
     );
-    println!("query   : {}", query_string);
-    println!("expected: {}", expected_query_string);
-    println!("request: {:?}", query_builder.clone().build_query_request());
+    log::debug!("query   : {}", query_string);
+    log::debug!("expected: {}", expected_query_string);
+    log::debug!("request: {:?}", query_builder.clone().build_query_request());
 
     assert_eq!(query_string, expected_query_string);
     assert_eq!(
@@ -75,7 +75,7 @@ async fn test_query_builder_1() {
         1
     );
     let res = query_builder.clone().run().await.unwrap();
-    println!("res: {:?}", res);
+    log::debug!("res: {:?}", res);
 }
 
 async fn get_test_client() -> BigqueryClient {
@@ -86,7 +86,7 @@ async fn get_test_client() -> BigqueryClient {
 
 #[tokio::test]
 async fn simple_query() {
-    init_logger(LevelFilter::Info);
+    init_logger();
     let client = get_test_client().await;
     let q = DbInfos::query(&client)
         .add_order_by(name_of!(row_id in DbInfos), OrderDirection::Descending)
@@ -100,9 +100,12 @@ async fn simple_query() {
     }
 }
 
-fn init_logger(level: LevelFilter) {
+fn init_logger() {
     let _ = env_logger::builder()
         .is_test(true)
-        .filter_level(level)
+        .filter_level(LevelFilter::Info)
+        .filter_module("google_bigquery_v2", LevelFilter::Trace)
+        .filter_module("google_bigquery_v2_derive", LevelFilter::Trace)
+        .filter_module("tests", LevelFilter::Trace)
         .try_init();
 }

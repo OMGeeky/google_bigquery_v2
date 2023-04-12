@@ -76,14 +76,14 @@ impl<'a, Table> BigQueryBuilder<'a, Table>
         }
 
         let query_res = query_res.rows.unwrap();
-        println!("query_res: {:?}", query_res);
+        log::debug!("query_res: {:?}", query_res);
         let mut result: Vec<Table> = Vec::new();
         for row in query_res {
             let row = row.f.unwrap();
             let mut row_data: HashMap<String, Value> = HashMap::new();
             for (i, field) in row.into_iter().enumerate() {
                 let field = field.v.unwrap_or(Value::Null);
-                println!("{}: {}", fields[i], field);
+                log::debug!("{}: {}", fields[i], field);
                 row_data.insert(fields[i].clone(), field);
             }
             let data = Table::new_from_query_result_row(client, &row_data)?;
@@ -98,7 +98,6 @@ impl<'a, Table> BigQueryBuilder<'a, Table>
             query: Some(self.build_query_string()),
             query_parameters: Some(self.required_params),
             use_legacy_sql: Some(false),
-            /*TODO: is this line needed?: use_legacy_sql: Some(false),*/
             ..Default::default()
         }
     }
@@ -202,7 +201,7 @@ impl<'a, Table> BigQueryBuilder<'a, Table>
                     .collect()
             }
         };
-        println!("fields: {:?}", fields);
+        log::debug!("fields: {:?}", fields);
         fields.sort();
         fields
     }
