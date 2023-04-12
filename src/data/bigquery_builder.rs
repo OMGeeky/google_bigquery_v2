@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use google_bigquery2::api::{
     QueryParameter, QueryParameterType, QueryParameterValue, QueryRequest,
 };
-use log::{debug, log, trace};
+use log::{debug, trace};
 use serde_json::Value;
 
 use crate::client::BigqueryClient;

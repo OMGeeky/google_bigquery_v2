@@ -47,7 +47,7 @@ fn implement_big_query_table_base(
     let impl_get_query_fields = implement_get_query_fields(&ast);
     let impl_get_table_name = implement_impl_get_table_name(&table_name);
     let impl_set_field_value = implement_set_field_value(&ast);
-    let impl_from__query_result_row = implement_from__query_result_row(&ast);
+    let impl_from_query_result_row = implement_from_query_result_row(&ast);
     quote::quote! {
         impl<'a> BigQueryTableBase<'a> for #table_ident<'a> {
             #impl_get_client
@@ -58,7 +58,7 @@ fn implement_big_query_table_base(
             #impl_get_query_fields
             #impl_get_table_name
             #impl_set_field_value
-            #impl_from__query_result_row
+            #impl_from_query_result_row
         }
     }
 }
@@ -191,10 +191,9 @@ fn implement_set_field_value(ast: &DeriveInput) -> TokenStream {
     }
 }
 
-fn implement_from__query_result_row(ast: &DeriveInput) -> TokenStream {
+fn implement_from_query_result_row(ast: &DeriveInput) -> TokenStream {
     fn set_field_value(f: Field) -> TokenStream {
         let field_ident = f.field_ident;
-        let local_name = f.local_name;
         let field_type = f.ty;
         let db_name = f.db_name;
         quote::quote! {

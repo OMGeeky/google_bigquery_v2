@@ -4,8 +4,8 @@ use log::trace;
 use serde_json::Value;
 
 use crate::client::BigqueryClient;
-use crate::data::param_conversion::{BigDataValueType, ConversionError};
-use crate::data::param_conversion::ConvertBigQueryParams;
+use crate::data::param_conversion::{BigDataValueType};
+
 use crate::prelude::*;
 
 
