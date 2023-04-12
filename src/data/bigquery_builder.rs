@@ -132,6 +132,13 @@ impl<'a, Table> BigQueryBuilder<'a, Table>
 
     //region add content
 
+    pub fn set_limit(self, limit: usize) -> Self {
+        Self {
+            limit: Some(limit),
+            ..self
+        }
+    }
+
     fn set_select_fields(self, fields: Vec<String>) -> Result<Self> {
         //TODO: this method probably does not work since the logic does
         //      not work if (at least the required) fields are not selected

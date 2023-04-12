@@ -99,6 +99,15 @@ async fn simple_query() {
         last_num = line.row_id;
     }
 }
+#[tokio::test]
+async fn test_select_limit_1() {
+    init_logger();
+    let client = get_test_client().await;
+    let q = DbInfos::query(&client)
+        .set_limit(1)
+        .run().await.unwrap();
+    assert_eq!(q.len(), 1);
+}
 
 fn init_logger() {
     let _ = env_logger::builder()
