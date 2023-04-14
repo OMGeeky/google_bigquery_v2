@@ -1,16 +1,22 @@
 use std::error::Error;
 use std::fmt::Debug;
 
+use google_bigquery2::{hyper, hyper_rustls, oauth2};
+use google_bigquery2::Bigquery;
 use google_bigquery2::hyper::client::HttpConnector;
 use google_bigquery2::hyper_rustls::HttpsConnector;
-use google_bigquery2::Bigquery;
-use google_bigquery2::{hyper, hyper_rustls, oauth2};
 
-
+#[derive(Clone)]
 pub struct BigqueryClient {
     client: Bigquery<HttpsConnector<HttpConnector>>,
     project_id: String,
     dataset_id: String,
+}
+
+impl Default for BigqueryClient {
+    fn default() -> Self {
+        BigqueryClient::empty()
+    }
 }
 
 impl BigqueryClient {
@@ -18,6 +24,12 @@ impl BigqueryClient {
         todo!()
     }
 }
+
+//TODO: check if this unsafe impl is needed
+unsafe impl Send for BigqueryClient {}
+
+//TODO: check if this unsafe impl is needed
+unsafe impl Sync for BigqueryClient {}
 
 impl BigqueryClient {
     pub async fn new<S: Into<String>>(
@@ -75,7 +87,7 @@ async fn get_internal_client<S: Into<String>>(
                 "Failed to read service account key from file. {}",
                 service_account_path
             )
-            .as_str(),
+                .as_str(),
         );
     let auth = oauth2::ServiceAccountAuthenticator::builder(secret)
         .build()

@@ -1,7 +1,7 @@
 #[allow(unused)]
 extern crate proc_macro;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use syn::DeriveInput;
 
 struct Field {
@@ -28,7 +28,7 @@ pub fn big_query_table_derive(input: proc_macro::TokenStream) -> proc_macro::Tok
 
 fn impl_big_query_table_derive(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
     let pk_field = get_pk_field(&ast);
-    let client_field = get_client_field(&ast);
+    let client_field = get_client_field(&ast.data);
     implement_big_query_table_base(&ast, &pk_field, &client_field)
 }
 
@@ -39,6 +39,8 @@ fn implement_big_query_table_base(
 ) -> proc_macro2::TokenStream {
     let table_ident = &ast.ident;
     let table_name = get_table_name(&ast);
+    let impl_get_all_params = implement_get_all_params(&ast, &table_ident);
+    let impl_get_parameter_from_field = implement_get_parameter_from_field(&ast, &table_ident);
     let impl_get_client = implement_get_client(&client_field);
     let impl_set_client = implement_set_client(&client_field);
     let impl_get_pk_field_name = implement_get_pk_field_name(&pk_field);
@@ -46,10 +48,15 @@ fn implement_big_query_table_base(
     let impl_get_pk_value = implement_get_pk_value(&pk_field);
     let impl_get_query_fields = implement_get_query_fields(&ast);
     let impl_get_table_name = implement_impl_get_table_name(&table_name);
+    let impl_reload = implement_reload(&pk_field);
     let impl_set_field_value = implement_set_field_value(&ast);
+    let impl_get_field_value = implement_get_field_value(&ast);
     let impl_from_query_result_row = implement_from_query_result_row(&ast);
     quote::quote! {
-        impl<'a> BigQueryTableBase<'a> for #table_ident<'a> {
+        #[async_trait::async_trait]
+        impl BigQueryTableBase for #table_ident {
+            #impl_get_all_params
+            #impl_get_parameter_from_field
             #impl_get_client
             #impl_set_client
             #impl_get_pk_field_name
@@ -57,19 +64,76 @@ fn implement_big_query_table_base(
             #impl_get_pk_value
             #impl_get_query_fields
             #impl_get_table_name
+            #impl_reload
             #impl_set_field_value
+            #impl_get_field_value
             #impl_from_query_result_row
+
+            async fn insert(&mut self) -> Result<()>{
+                todo!()
+            }
+            async fn update(&mut self) -> Result<()>{
+                todo!()
+            }
         }
     }
 }
 
+fn implement_get_all_params(ast: &DeriveInput, table_ident: &Ident) -> TokenStream {
+    fn get_param_from_field(f: Field, table_ident: &Ident) -> TokenStream {
+        let field_ident = f.field_ident;
+        let field_name = f.local_name;
+        quote::quote! {
+            #table_ident::get_parameter(&self.#field_ident, &#table_ident::get_field_param_name(&#field_name.to_string())?)?
+        }
+    }
+    let table_ident = &ast.ident;
+    let fields = get_fields_without_client(&ast.data);
+    let fields = fields
+        .into_iter()
+        .map(|f| get_param_from_field(f, &table_ident));
+
+    quote::quote! {
+        fn get_all_params(&self) -> google_bigquery_v2::prelude::Result<Vec<google_bigquery_v2::data::QueryParameter>> {
+            log::trace!("get_all_params() self:{:?}", self);
+            Ok(vec![
+                #(#fields),*
+            ])
+        }
+    }
+}
+
+fn implement_get_parameter_from_field(ast: &DeriveInput, table_ident: &Ident) -> TokenStream {
+    fn get_param_from_field(f: Field, table_ident: &Ident) -> TokenStream {
+        let field_ident = f.field_ident;
+        let field_name = f.local_name;
+        quote::quote! {
+            #field_name => #table_ident::get_parameter(&self.#field_ident, &#table_ident::get_field_param_name(&#field_name.to_string())?),
+        }
+    }
+    let table_ident = &ast.ident;
+    let fields = get_fields_without_client(&ast.data);
+    let fields = fields
+        .into_iter()
+        .map(|f| get_param_from_field(f, &table_ident));
+
+    quote::quote! {
+        fn get_parameter_from_field(&self, field_name: &str) -> google_bigquery_v2::prelude::Result<google_bigquery_v2::data::QueryParameter> {
+            log::trace!("get_parameter_from_field(); field_name: '{}' self:{:?}", field_name, self);
+            match field_name {
+                #(#fields)*
+                _ => Err(format!("Field {} not found", field_name).into()),
+            }
+        }
+    }
+}
 
 //region method implementations
 
 fn implement_get_client(client_field: &Field) -> TokenStream {
     let client_ident = client_field.field_ident.clone();
     quote::quote! {
-        fn get_client(&self) -> &'a BigqueryClient {
+        fn get_client(&self) -> &BigqueryClient {
             log::trace!("get_client() self={:?}", self);
             &self.#client_ident
         }
@@ -79,7 +143,7 @@ fn implement_get_client(client_field: &Field) -> TokenStream {
 fn implement_set_client(client_field: &Field) -> TokenStream {
     let client_ident = client_field.field_ident.clone();
     quote::quote! {
-        fn set_client(&mut self, client: &'a BigqueryClient) {
+        fn set_client(&mut self, client: BigqueryClient) {
             log::trace!("set_client() self={:?}", self);
             self.#client_ident = client;
         }
@@ -109,7 +173,7 @@ fn implement_get_pk_db_name(pk_field: &Field) -> TokenStream {
 fn implement_get_pk_value(pk_field: &Field) -> TokenStream {
     let pk_ident = &pk_field.field_ident;
     quote::quote! {
-        fn get_pk_value(&self) -> &dyn google_bigquery_v2::data::param_conversion::BigDataValueType {
+        fn get_pk_value(&self) -> &(dyn google_bigquery_v2::data::param_conversion::BigDataValueType + Send + Sync) {
             log::trace!("get_pk_value() self={:?}", self);
             &self.#pk_ident
         }
@@ -124,14 +188,11 @@ fn implement_get_query_fields(ast: &DeriveInput) -> TokenStream {
             map.insert(String::from(#local_name),String::from(#db_name));
         }
     }
-    let fields = get_fields(&ast.data);
+    let fields = get_fields_without_client(&ast.data);
     let pk_field = get_pk_field(&ast);
-    let client_ident = get_client_field(&ast).field_ident;
     let fields: Vec<TokenStream> = fields
         .into_iter()
-        .filter(|f| {
-            f.field_ident != client_ident && f.field_ident != pk_field.field_ident
-        })
+        .filter(|f| f.field_ident != pk_field.field_ident)
         .map(implement_map_insert)
         .collect();
 
@@ -168,15 +229,8 @@ fn implement_set_field_value(ast: &DeriveInput) -> TokenStream {
             #local_name => self.#field_ident = #field_type::from_param(value)?,
         }
     }
-    let client_ident = get_client_field(&ast).field_ident;
-    let fields = get_fields(&ast.data);
-    let fields: Vec<TokenStream> = fields
-        .into_iter()
-        .filter(|f| {
-            f.field_ident != client_ident
-        })
-        .map(write_set_field_value)
-        .collect();
+    let fields = get_fields_without_client(&ast.data);
+    let fields: Vec<TokenStream> = fields.into_iter().map(write_set_field_value).collect();
 
     quote::quote! {
         fn set_field_value(&mut self, field_name: &str, value: &serde_json::Value) -> Result<()>{
@@ -190,6 +244,28 @@ fn implement_set_field_value(ast: &DeriveInput) -> TokenStream {
         }
     }
 }
+fn implement_get_field_value(ast: &DeriveInput) -> TokenStream {
+    fn write_get_field_value(f: Field) -> TokenStream {
+        let field_ident = f.field_ident;
+        let local_name = f.local_name;
+        quote::quote! {
+            #local_name => Ok(ConvertBigQueryParams::to_param(&self.#field_ident)),
+        }
+    }
+    let fields = get_fields_without_client(&ast.data);
+    let fields: Vec<TokenStream> = fields.into_iter().map(write_get_field_value).collect();
+
+    quote::quote! {
+        fn get_field_value(&self, field_name: &str) -> Result<serde_json::Value> {
+            log::trace!("get_field_value() self={:?} field_name={}", self, field_name);
+            use google_bigquery_v2::data::param_conversion::ConvertBigQueryParams;
+            match field_name {
+                #(#fields)*
+                _ => return Err(google_bigquery_v2::data::param_conversion::ConversionError::new(format!("Field '{}' not found", field_name)).into())
+            }
+        }
+    }
+}
 
 fn implement_from_query_result_row(ast: &DeriveInput) -> TokenStream {
     fn set_field_value(f: Field) -> TokenStream {
@@ -200,18 +276,12 @@ fn implement_from_query_result_row(ast: &DeriveInput) -> TokenStream {
             #field_ident: #field_type::from_param(&row[#db_name])?,
         }
     }
-    let client_ident = get_client_field(&ast).field_ident;
-    let fields = get_fields(&ast.data);
-    let fields: Vec<TokenStream> = fields
-        .into_iter()
-        .filter(|f| {
-            f.field_ident != client_ident
-        })
-        .map(set_field_value)
-        .collect();
+    let client_ident = get_client_field(&ast.data).field_ident;
+    let fields = get_fields_without_client(&ast.data);
+    let fields: Vec<TokenStream> = fields.into_iter().map(set_field_value).collect();
     quote::quote! {
          fn new_from_query_result_row(
-        client: &'a BigqueryClient,
+        client: BigqueryClient,
         row: &std::collections::HashMap<String, serde_json::Value>,
     ) -> Result<Self>
         where Self: Sized {
@@ -224,6 +294,22 @@ fn implement_from_query_result_row(ast: &DeriveInput) -> TokenStream {
             Ok(result)
          }
      }
+}
+
+fn implement_reload(pk_field: &Field) -> TokenStream {
+    let pk_value = &pk_field.field_ident;
+    quote::quote! {
+        async fn reload(&mut self) -> Result<()>
+            where
+                Self: Sized + Send + Sync,
+        {
+            log::trace!("reload()");
+            let value = &self.#pk_value;//TODO: this is the problem!. it just does not want to work
+            Self::get_by_pk(self.get_client().clone(), value).await.map(|mut t| {
+                *self = t;
+            })
+        }
+    }
 }
 //endregion
 
@@ -250,9 +336,9 @@ fn get_pk_field(ast: &syn::DeriveInput) -> Field {
     pk
 }
 
-fn get_client_field(ast: &syn::DeriveInput) -> Field {
+fn get_client_field(data: &syn::Data) -> Field {
     //region client
-    let mut client_fields = get_fields_with_attribute(&ast.data, "client");
+    let mut client_fields = get_fields_with_attribute(&data, "client");
     if client_fields.len() != 1 {
         panic!("Exactly one client field must be specified");
     }
@@ -276,7 +362,16 @@ fn get_struct_attributes(ast: &syn::DeriveInput) -> Vec<Attribute> {
     }
     res
 }
-
+fn get_fields_without_client(data: &syn::Data) -> Vec<Field> {
+    let mut res = vec![];
+    let client_ident = get_client_field(&data).field_ident;
+    for field in get_fields(&data) {
+        if field.field_ident != client_ident {
+            res.push(field);
+        }
+    }
+    res
+}
 fn get_fields(data: &syn::Data) -> Vec<Field> {
     let mut res = vec![];
 

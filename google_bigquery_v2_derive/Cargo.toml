@@ -1,9 +1,7 @@
 [package]
 name = "google_bigquery_v2_derive"
-version = "0.0.0"
+version = "0.0.1"
 authors = ["OMGeeky <aalaalgmx@gmail.com>"]
-description = "A `cargo generate` template for quick-starting a procedural macro crate"
-keywords = ["template", "proc_macro", "procmacro"]
 edition = "2021"
 
 [lib]

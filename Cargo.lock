@@ -395,6 +395,7 @@ dependencies = [
 name = "google_bigquery_v2"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
  "env_logger",
  "google-bigquery2",
@@ -407,7 +408,7 @@ dependencies = [
 
 [[package]]
 name = "google_bigquery_v2_derive"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "proc-macro2",
  "quote",
