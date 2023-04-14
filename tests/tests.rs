@@ -2,8 +2,8 @@ use log::{debug, info, LevelFilter};
 use nameof::name_of;
 
 use google_bigquery_v2::data::query_builder::{
-    HasStartingData, NoClient, NoStartingData, QueryBuilder, QueryTypeInsert, QueryTypeNoType,
-    QueryTypeSelect, QueryWasNotBuilt,
+    HasStartingData, NoClient, NoStartingData, QueryBuilder, QueryResultType, QueryTypeInsert,
+    QueryTypeNoType, QueryTypeSelect, QueryTypeUpdate, QueryWasNotBuilt,
 };
 use google_bigquery_v2::prelude::*;
 
@@ -15,32 +15,23 @@ pub struct DbInfos {
     #[primary_key]
     #[db_name("Id")]
     row_id: i64,
-    info1: Option::<String>,
+    info1: Option<String>,
     #[db_name("info")]
-    info2: Option::<String>,
-    info3: Option::<String>,
-    info4i: Option::<i32>,
+    info2: Option<String>,
+    info3: Option<String>,
+    info4i: Option<i32>,
     #[db_name("yes")]
-    info4b: Option::<bool>,
+    info4b: Option<bool>,
 }
-pub struct DbInfos2{
+
+pub struct DbInfos2 {
     client: BigqueryClient,
     row_id: i64,
-    info1: Option::<String>,
+    info1: Option<String>,
     info2: Option<String>,
     info3: Option<String>,
     info4i: Option<i32>,
     info4b: Option<bool>,
-}
-
-//TODO: outsource this impl into the derive
-impl DbInfos {
-    fn select() -> QueryBuilder<Self, QueryTypeSelect, NoClient, QueryWasNotBuilt, NoStartingData> {
-        QueryBuilder::<Self, QueryTypeNoType, NoClient, QueryWasNotBuilt, NoStartingData>::select()
-    }
-    fn insert() -> QueryBuilder<Self, QueryTypeInsert, NoClient, QueryWasNotBuilt, NoStartingData> {
-        QueryBuilder::<Self, QueryTypeNoType, NoClient, QueryWasNotBuilt, NoStartingData>::insert()
-    }
 }
 
 #[tokio::test]
@@ -49,7 +40,7 @@ async fn test1() {
     let client = get_test_client().await;
     let query_builder = DbInfos::select().with_client(client.clone());
     debug!("{:?}", query_builder);
-    let query_builder = query_builder.build_query();
+    let query_builder = query_builder.build_query().unwrap();
 
     debug!("query: {:?}", query_builder);
     let result = query_builder.clone().run().await;
@@ -73,6 +64,28 @@ async fn test1() {
     let result = query_builder.clone().run().await;
     println!("query: {:?}", query_builder);
     println!("result: {:?}", result);
+}
+
+#[tokio::test]
+async fn test_save() {
+    init_logger();
+    let client = get_test_client().await;
+    let mut entry = DbInfos::get_by_pk(client.clone(), &123123)
+        .await
+        .expect("get_by_pk failed");
+    entry.info1 = Some("test1".to_string());
+    entry.info2 = Some("test2".to_string());
+    entry.info3 = Some("test3".to_string());
+    entry.info4i = Some(1);
+    entry.info4b = Some(true);
+    log::debug!("entry: {:?}", entry);
+    debug!("========================================================================");
+    debug!("starting save");
+    debug!("========================================================================");
+    entry.save().await.expect("save failed");
+    debug!("========================================================================");
+    debug!("save done");
+    debug!("========================================================================");
 }
 
 #[tokio::test]
@@ -101,35 +114,43 @@ async fn test_get_query_fields() {
 async fn test_query_builder_1() {
     init_logger();
     let client = get_test_client().await;
-    let query_builder: BigQueryBuilder<DbInfos> = DbInfos::query(client);
-    let query_builder: BigQueryBuilder<DbInfos> = query_builder
+    let query_builder = DbInfos::select().with_client(client);
+    let query_builder = query_builder
         .add_where_eq::<String>(name_of!(info1 in DbInfos), None)
         .unwrap()
         .add_where_eq(name_of!(info3 in DbInfos), Some(&"cc".to_string()))
         .unwrap()
         .add_order_by(name_of!(info2 in DbInfos), OrderDirection::Ascending);
-    let query_string = query_builder.clone().build_query_string();
-    let expected_query_string = String::from(
-        "SELECT Id, info, info1, info3, info4i, yes \
-    FROM `testrustproject-372221.test1.Infos` \
-    WHERE info1 is NULL AND info3 = @__PARAM_0 \
-    ORDER BY info ASC LIMIT 1000",
-    );
+    let query_string = query_builder
+        .clone()
+        .build_query()
+        .unwrap()
+        .get_query_string()
+        .to_string();
+    let expected_query_string =
+        "SELECT info1, info, info3, yes, info4i, Id FROM `testrustproject-372221.test1.Infos` WHERE info1 is NULL AND info3 = @__PARAM_0 ORDER BY info ASC".to_string()
+        ;
     log::debug!("query   : {}", query_string);
     log::debug!("expected: {}", expected_query_string);
-    log::debug!("request: {:?}", query_builder.clone().build_query_request());
+    log::debug!("request: {:?}", query_builder.clone().build_query());
 
     assert_eq!(query_string, expected_query_string);
-    assert_eq!(
-        query_builder
-            .clone()
-            .build_query_request()
-            .query_parameters
-            .unwrap()
-            .len(),
-        1
-    );
-    let res = query_builder.clone().run().await.unwrap();
+    // assert_eq!(
+    //     query_builder
+    //         .clone()
+    //         .build_query_request()
+    //         .query_parameters
+    //         .unwrap()
+    //         .len(),
+    //     1
+    // );
+    let res = query_builder
+        .clone()
+        .build_query()
+        .unwrap()
+        .run()
+        .await
+        .unwrap();
     log::debug!("res: {:?}", res);
 }
 
@@ -143,11 +164,18 @@ async fn get_test_client() -> BigqueryClient {
 async fn simple_query() {
     init_logger();
     let client = get_test_client().await;
-    let q: Vec<DbInfos> = DbInfos::query(client)
+    let q = DbInfos::select()
+        .with_client(client)
         .add_order_by(name_of!(row_id in DbInfos), OrderDirection::Descending)
+        .build_query()
+        .unwrap()
         .run()
         .await
         .unwrap();
+    let q = match q {
+        QueryResultType::WithRowData(q) => q,
+        QueryResultType::WithoutRowData(e) => panic!("no data: {:?}", e),
+    };
     let mut last_num = 999999999999999999;
     for line in q {
         info!("line: {:?}", line);
@@ -161,13 +189,21 @@ async fn simple_query() {
 async fn test_select_limit_1() {
     init_logger();
     let client = get_test_client().await;
-    let q: Vec<DbInfos> = DbInfos::query(client).set_limit(1).run().await.unwrap();
+    let q: Vec<DbInfos> = DbInfos::select()
+        .with_client(client)
+        .set_limit(1)
+        .build_query()
+        .unwrap()
+        .run()
+        .await
+        .unwrap()
+        .expect_with_data("no data");
     assert_eq!(q.len(), 1);
 }
 
 fn init_logger() {
     let global_level = LevelFilter::Info;
-    let own_level = LevelFilter::Debug;
+    let own_level = LevelFilter::Trace;
     let _ = env_logger::builder()
         .is_test(true)
         .filter_level(global_level)

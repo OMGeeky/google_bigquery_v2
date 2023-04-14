@@ -139,7 +139,9 @@ pub fn convert_value_to_string(value: Value) -> Result<String> {
         Ok(value::from_value(value)?)
     } else {
         warn!("Unknown type: {:?}", value);
-
+        if value == Value::Null {
+            return Err("Value is Null".into());
+        }
         //TODO: check if this is correct with for example 'DATETIME' values
         // Err(format!("Unknown type: {:?}", value).into())
         let string = value.to_string();

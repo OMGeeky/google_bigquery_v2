@@ -11,8 +11,10 @@ use log::trace;
 use serde_json::Value;
 
 use crate::client::BigqueryClient;
-use crate::data::param_conversion::{
-    convert_value_to_string, BigDataValueType,
+use crate::data::param_conversion::{convert_value_to_string, BigDataValueType};
+use crate::data::query_builder::{
+    NoClient, NoStartingData, QueryBuilder, QueryResultType, QueryTypeInsert, QueryTypeNoType,
+    QueryTypeSelect, QueryTypeUpdate, QueryWasNotBuilt,
 };
 use crate::prelude::*;
 
@@ -61,18 +63,29 @@ pub trait BigQueryTableBase {
 
     //endregion
 
-    //region insert
-
-    async fn insert(&mut self) -> Result<()>;
-    async fn update(&mut self) -> Result<()>;
-
-    //endregion
-
     //endregion
 }
 
 #[async_trait]
 pub trait BigQueryTable: BigQueryTableBase {
+    fn select() -> QueryBuilder<Self, QueryTypeSelect, NoClient, QueryWasNotBuilt, NoStartingData>
+    where
+        Self: Sized,
+    {
+        QueryBuilder::<Self, QueryTypeNoType, NoClient, QueryWasNotBuilt, NoStartingData>::select()
+    }
+    fn insert() -> QueryBuilder<Self, QueryTypeInsert, NoClient, QueryWasNotBuilt, NoStartingData>
+    where
+        Self: Sized,
+    {
+        QueryBuilder::<Self, QueryTypeNoType, NoClient, QueryWasNotBuilt, NoStartingData>::insert()
+    }
+    fn update() -> QueryBuilder<Self, QueryTypeUpdate, NoClient, QueryWasNotBuilt, NoStartingData>
+    where
+        Self: Sized,
+    {
+        QueryBuilder::<Self, QueryTypeNoType, NoClient, QueryWasNotBuilt, NoStartingData>::update()
+    }
     fn get_parameter<T>(value: &T, param_name: &String) -> Result<QueryParameter>
     where
         T: BigDataValueType + Debug,
@@ -86,16 +99,25 @@ pub trait BigQueryTable: BigQueryTableBase {
         };
         debug!("param_type: {:?}", param_type);
         debug!("param_value: {:?}", value);
-        let param_value = convert_value_to_string(value)?;
+        let param_value = convert_value_to_string(value);
         debug!("param_value: {:?}", param_value);
-        let param_value = QueryParameterValue {
-            value: Some(param_value),
-            ..Default::default()
+        let param_value = match param_value {
+            Ok(param_value) => Some(QueryParameterValue {
+                value: Some(param_value),
+                ..Default::default()
+            }),
+            Err(_) => todo!(
+                "a parameter value probably of sort null is not yet \
+            implemented. Does this even make sense or should the code that's \
+            calling this react if there is an error returned from this function \
+            and modify the where to be 'is null' instead of '== @__PARAM_x'?"
+            ),
         };
+        debug!("param_value: {:?}", param_value);
 
         let param = QueryParameter {
             parameter_type: Some(param_type),
-            parameter_value: Some(param_value),
+            parameter_value: param_value,
             name: Some(param_name.clone()),
         };
         Ok(param)
@@ -133,36 +155,44 @@ pub trait BigQueryTable: BigQueryTableBase {
     async fn get_by_pk<PK>(client: BigqueryClient, pk_value: &PK) -> Result<Self>
     where
         PK: BigDataValueType + Send + Sync + 'static,
-        Self: Sized,
+        Self: Sized + Debug,
     {
         trace!("get_by_pk({:?}, {:?})", client, pk_value);
         let pk_field_name = Self::get_pk_field_name();
         let pk_db_name = Self::get_pk_db_name();
-        let result = Self::query(client)
+        let result = Self::select()
+            .with_client(client)
             .add_where_eq(&pk_field_name, Some(pk_value))?
+            .build_query()?
             .run()
-            .await;
-        match result {
-            Ok(mut v) => {
-                if v.len() == 0 {
-                    Err(format!("No entry found for {} = {:?}", pk_db_name, pk_value).into())
-                } else if v.len() > 1 {
-                    Err(format!(
-                        "More than one entry found for {} = {:?}",
-                        pk_db_name, pk_value
-                    )
-                    .into())
-                } else {
-                    Ok(v.remove(0))
-                }
+            .await?;
+        let mut rows = match result {
+            QueryResultType::WithRowData(data) => data,
+            QueryResultType::WithoutRowData(success) => {
+                return Err(format!(
+                    "something went wrong when getting for {} = {:?};\tresult: {:?}",
+                    pk_field_name, pk_value, success
+                )
+                .into());
             }
-            Err(e) => Err(e),
+        };
+
+        if rows.len() == 0 {
+            Err(format!("No entry found for {} = {:?}", pk_db_name, pk_value).into())
+        } else if rows.len() > 1 {
+            Err(format!(
+                "More than one entry found for {} = {:?}",
+                pk_db_name, pk_value
+            )
+            .into())
+        } else {
+            Ok(rows.remove(0))
         }
     }
 
     async fn upsert(&mut self) -> Result<()>
     where
-        Self: Sized + Clone + Send + Sync,
+        Self: Sized + Clone + Send + Sync + Debug + Default,
     {
         trace!("upsert()");
 
@@ -174,14 +204,42 @@ pub trait BigQueryTable: BigQueryTableBase {
             }
             Err(_) => {
                 debug!("Inserting new entry.");
-                self.insert().await
+                Self::insert()
+                    .with_client(self.get_client().clone())
+                    .set_data(self.clone())
+                    .build_query()?
+                    .run()
+                    .await?
+                    .map_err_without_data("upsert should not return data.")
             }
         }
     }
 
     /// proxy for update
-    async fn save(&mut self) -> Result<()> {
-        self.update().await
+    async fn save(&mut self) -> Result<()>
+    where
+        Self: Sized + Clone + Send + Sync + Debug + Default,
+    {
+        trace!("save(): {:?}", self);
+        let result = Self::update()
+            .with_client(self.get_client().clone())
+            .set_data(self.clone())
+            .build_query()?
+            .run()
+            .await?;
+        trace!("save() result: {:?}", result);
+        let count = result
+            .expect_with_data("save should return empty data.")
+            .len();
+        if count == 0 {
+            Ok(())
+        } else {
+            Err(format!(
+                "save should return empty data, but returned {} rows.",
+                count
+            )
+            .into())
+        }
     }
 
     /// updates the current instance from another instance.
@@ -192,16 +250,6 @@ pub trait BigQueryTable: BigQueryTableBase {
             self.set_field_value(&field_name, &value)?;
         }
         Ok(())
-    }
-
-    fn query<Table>(client: BigqueryClient) -> BigQueryBuilder<Table>
-    where
-        Table: BigQueryTable,
-    {
-        BigQueryBuilder {
-            client: Some(client),
-            ..Default::default()
-        }
     }
 }
 

@@ -1,21 +1,21 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
-pub use convert_bigquery_params::{
-    convert_value_to_string, ConvertBigQueryParams,
-};
+pub use convert_bigquery_params::{convert_value_to_string, ConvertBigQueryParams};
 pub use convert_type_to_big_query_type::ConvertTypeToBigQueryType;
 
 mod convert_bigquery_params;
 mod convert_type_to_big_query_type;
 
 pub trait BigDataValueType:
-ConvertTypeToBigQueryType + ConvertBigQueryParams + Debug + Send + Sync
-{}
+    ConvertTypeToBigQueryType + ConvertBigQueryParams + Debug + Send + Sync
+{
+}
 
 impl<T: ConvertTypeToBigQueryType + ConvertBigQueryParams + Debug + Send + Sync> BigDataValueType
-for T
-{}
+    for T
+{
+}
 
 //region ConversionError
 #[derive(Debug)]

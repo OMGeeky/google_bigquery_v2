@@ -68,13 +68,6 @@ fn implement_big_query_table_base(
             #impl_set_field_value
             #impl_get_field_value
             #impl_from_query_result_row
-
-            async fn insert(&mut self) -> Result<()>{
-                todo!()
-            }
-            async fn update(&mut self) -> Result<()>{
-                todo!()
-            }
         }
     }
 }
