@@ -61,3 +61,9 @@ where
         "DATETIME".to_string()
     }
 }
+
+impl<T: ConvertTypeToBigQueryType + Debug> ConvertTypeToBigQueryType for Option<T> {
+    fn convert_type_to_bigquery_type() -> String {
+        T::convert_type_to_bigquery_type()
+    }
+}
