@@ -167,7 +167,7 @@ pub struct QueryBuilder<Table, QueryType, Client, QueryBuilt, StartingData> {
 
 //region default implementation for QueryBuilder
 impl<Table, QueryType, Client: Default, QueryBuilt, StartingData: Default> Default
-    for QueryBuilder<Table, QueryType, Client, QueryBuilt, StartingData>
+for QueryBuilder<Table, QueryType, Client, QueryBuilt, StartingData>
 {
     fn default() -> Self {
         Self {
@@ -189,7 +189,7 @@ impl<Table, QueryType, Client: Default, QueryBuilt, StartingData: Default> Defau
 //region general QueryBuilder
 //region functions for all queries
 impl<Table: BigQueryTable, UnknownQueryType, Client, QueryBuilt, StartingData>
-    QueryBuilder<Table, UnknownQueryType, Client, QueryBuilt, StartingData>
+QueryBuilder<Table, UnknownQueryType, Client, QueryBuilt, StartingData>
 {
     fn get_sorted_selected_fields(&self) -> Vec<(String, String)> {
         trace!("get_sorted_selected_fields()");
@@ -214,22 +214,26 @@ impl<Table: BigQueryTable, UnknownQueryType, Client, QueryBuilt, StartingData>
 //region functions for not built queries
 //region with Starting data
 impl<Table: BigQueryTable + Default, UnknownQueryType, Client>
-    QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, HasStartingData<Table>>
+QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, HasStartingData<Table>>
 {
     pub fn add_field_where(self, field: &str) -> Result<Self> {
         trace!("add_field_where(field: {})", field);
 
         let field_db_name = Table::get_field_db_name(field)?;
         let param = Table::get_parameter_from_field(&self.starting_data.0, &field)?;
-        let has_param_value = param.parameter_value.is_some();
         let mut params = self.params;
 
         let mut wheres = self.where_clauses;
-        if has_param_value {
-            let param_name = param.name.as_ref().unwrap().to_string();
-            params.push(param);
-            wheres.push(format!("{} = @{}", field_db_name, param_name));
-        } else {
+        let mut has_param_value = false;
+        if let Some(param) = param {
+            if param.parameter_value.is_some() {
+                has_param_value = true;
+                let param_name = param.name.as_ref().unwrap().to_string();
+                params.push(param);
+                wheres.push(format!("{} = @{}", field_db_name, param_name));
+            }
+        }
+        if !has_param_value {
             wheres.push(format!("{} is NULL", field_db_name));
         }
         Ok(Self {
@@ -238,16 +242,38 @@ impl<Table: BigQueryTable + Default, UnknownQueryType, Client>
             ..self
         })
     }
+
+    fn add_params_for_table_query_fields(&mut self) -> Result<()> {
+        trace!("add_params_for_table_query_fields()");
+        let local_fields = Table::get_query_fields(true);
+        let starting_data = &self.starting_data.0;
+        for (local_field_name, _) in local_fields {
+            let para = Table::get_parameter_from_field(starting_data, &local_field_name)?;
+            if let Some(para) = para {
+                let mut has_param = false;
+                for existing_para in &self.params {
+                    if existing_para.name == para.name {
+                        has_param = true;
+                        break;
+                    }
+                }
+                if !has_param {
+                    self.params.push(para);
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 //endregion
 impl<Table: BigQueryTable + Debug, UnknownQueryType: Debug, Client: Debug, StartingData: Debug>
-    QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, StartingData>
+QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, StartingData>
 {
     //region set query content
     pub fn add_where_eq<T>(self, column: &str, value: Option<&T>) -> Result<Self>
-    where
-        T: BigDataValueType + Debug,
+        where
+            T: BigDataValueType + Debug,
     {
         trace!("add_where_eq({:?}, {:?})", column, value);
         let column = Table::get_field_db_name(column)?;
@@ -255,19 +281,19 @@ impl<Table: BigQueryTable + Debug, UnknownQueryType: Debug, Client: Debug, Start
 
         if let Some(value) = value {
             let param_name = format!("__PARAM_{}", self.params.len());
+            let param = Table::get_parameter(value, &param_name);
+            if let Some(param) = param {
+                let mut required_params = self.params;
+                required_params.push(param);
 
-            let param = Table::get_parameter(value, &param_name)?;
+                wheres.push(format!("{} = @{}", column, param_name));
 
-            let mut required_params = self.params;
-            required_params.push(param);
-
-            wheres.push(format!("{} = @{}", column, param_name));
-
-            return Ok(Self {
-                where_clauses: wheres,
-                params: required_params,
-                ..self
-            });
+                return Ok(Self {
+                    where_clauses: wheres,
+                    params: required_params,
+                    ..self
+                });
+            }
         }
 
         wheres.push(format!("{} is NULL", column));
@@ -327,7 +353,7 @@ impl<Table: BigQueryTable + Debug, UnknownQueryType: Debug, Client: Debug, Start
 //endregion
 //region set_data
 impl<Table: BigQueryTable + Default + Debug, QueryType: HasQueryType, Client: Default>
-    QueryBuilder<Table, QueryType, Client, QueryWasNotBuilt, NoStartingData>
+QueryBuilder<Table, QueryType, Client, QueryWasNotBuilt, NoStartingData>
 {
     pub fn set_data(
         self,
@@ -352,7 +378,7 @@ impl<Table: BigQueryTable + Default + Debug, QueryType: HasQueryType, Client: De
 //endregion
 //region QueryTypeNoType
 impl<Table: BigQueryTable, Client: Default, StartingData: Default>
-    QueryBuilder<Table, QueryTypeNoType, Client, QueryWasNotBuilt, StartingData>
+QueryBuilder<Table, QueryTypeNoType, Client, QueryWasNotBuilt, StartingData>
 {
     pub fn select() -> QueryBuilder<Table, QueryTypeSelect, NoClient, QueryWasNotBuilt, StartingData>
     {
@@ -383,26 +409,20 @@ impl<Table: BigQueryTable, Client: Default, StartingData: Default>
 //endregion
 //region QueryTypeInsert
 impl<Table: BigQueryTable + Default + Debug>
-    QueryBuilder<Table, QueryTypeInsert, HasClient, QueryWasNotBuilt, HasStartingData<Table>>
+QueryBuilder<Table, QueryTypeInsert, HasClient, QueryWasNotBuilt, HasStartingData<Table>>
 {
     pub fn build_query(
-        self,
+        mut self,
     ) -> Result<
         QueryBuilder<Table, QueryTypeInsert, HasClient, QueryWasBuilt, HasStartingData<Table>>,
     > {
         trace!("build_query: insert: {:?}", self);
         let table_identifier = Table::get_table_identifier_from_client(&self.client.0);
-        let fields = self.get_fields_string();
-        let values = self.get_values_params_string()?;
         let params = &self.params;
         log::warn!("params are not used in insert query: {:?}", params);
-        let mut params = vec![];
-        let local_fields = Table::get_query_fields(true);
-        let starting_data = &self.starting_data.0;
-        for (local_field_name, _) in local_fields {
-            let para = Table::get_parameter_from_field(starting_data, &local_field_name)?;
-            params.push(para);
-        }
+        self.add_params_for_table_query_fields()?;
+        let fields = self.get_fields_string();
+        let values = self.get_values_params_string()?;
 
         let query = format!(
             "insert into {} ({}) values({})",
@@ -410,7 +430,7 @@ impl<Table: BigQueryTable + Default + Debug>
         );
         Ok(QueryBuilder {
             query,
-            params,
+            params: self.params,
             where_clauses: self.where_clauses,
             order_by: self.order_by,
             limit: self.limit,
@@ -423,20 +443,40 @@ impl<Table: BigQueryTable + Default + Debug>
     }
 
     fn get_values_params_string(&self) -> Result<String> {
-        let values = self.get_value_parameter_names()?;
+        trace!("get_values_params_string\tself: {:?}", self);
+        let values: Vec<Option<String>> = self.get_value_parameter_names()?;
         Ok(values
             .iter()
-            .map(|v| format!("@{}", v))
+            .map(|v| match v {
+                Some(v) => format!("@{}", v),
+                None => String::from("NULL"),
+            })
             .collect::<Vec<String>>()
             .join(", "))
     }
-
-    fn get_value_parameter_names(&self) -> Result<Vec<String>> {
+    /// Returns a vector of parameter names for the values in the insert query.
+    ///
+    /// If the parameter for a field does not exists, it will just be NULL in
+    /// the query, not a parameter.
+    fn get_value_parameter_names(&self) -> Result<Vec<Option<String>>> {
+        trace!("get_value_parameter_names\tself: {:?}", self);
         let mut values = self.get_sorted_selected_fields();
+        let existing_params: Vec<String> = self.params.iter().map(|p| p.name.clone().unwrap()).collect();
+        debug!("existing_params: len: {} params: {:?}", existing_params.len(), existing_params);
+        debug!("selected_fields: len: {} fields: {:?}", values.len(), values);
         let res = values
             .iter_mut()
-            .map(|(field, _)| Table::get_field_param_name(field))
-            .collect::<Result<Vec<String>>>()?;
+            .map(|(field, _)| match Table::get_field_param_name(field) {
+                Ok(param_name) => {
+                    if existing_params.contains(&param_name) {
+                        Ok(Some(param_name))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                Err(e) => Err(e),
+            })
+            .collect::<Result<Vec<Option<String>>>>()?;
         Ok(res)
     }
 }
@@ -444,7 +484,7 @@ impl<Table: BigQueryTable + Default + Debug>
 //endregion
 //region QueryTypeUpdate
 impl<Table: BigQueryTable + Default + Debug>
-    QueryBuilder<Table, QueryTypeUpdate, HasClient, QueryWasNotBuilt, HasStartingData<Table>>
+QueryBuilder<Table, QueryTypeUpdate, HasClient, QueryWasNotBuilt, HasStartingData<Table>>
 {
     pub fn build_query(
         mut self,
@@ -453,7 +493,6 @@ impl<Table: BigQueryTable + Default + Debug>
     > {
         trace!("build_query: update: {:?}", self);
         let table_identifier = Table::get_table_identifier_from_client(&self.client.0);
-        let fields_str = self.build_update_fields_string()?;
         if self.where_clauses.is_empty() {
             trace!("no where clause, adding pk field to where clause");
             self = self.add_field_where(&Table::get_pk_field_name())?;
@@ -461,13 +500,8 @@ impl<Table: BigQueryTable + Default + Debug>
         let where_clause = self.build_where_string();
         let params = &self.params;
         log::warn!("params are not used in update query: {:?}", params);
-        let mut params = vec![];
-        let local_fields = Table::get_query_fields(true);
-        let starting_data = &self.starting_data.0;
-        for (local_field_name, _) in local_fields {
-            let para = Table::get_parameter_from_field(starting_data, &local_field_name)?;
-            params.push(para);
-        }
+        self.add_params_for_table_query_fields()?;
+        let fields_str = self.build_update_fields_string()?;
 
         let query = format!(
             "update {} set {} {}",
@@ -475,7 +509,7 @@ impl<Table: BigQueryTable + Default + Debug>
         );
         Ok(QueryBuilder {
             query,
-            params,
+            params: self.params,
             where_clauses: self.where_clauses,
             order_by: self.order_by,
             limit: self.limit,
@@ -492,20 +526,28 @@ impl<Table: BigQueryTable + Default + Debug>
         let result = self
             .get_value_parameter_names()?
             .into_iter()
-            .map(|(f, p)| format!("{} = @{}", f, p).to_string())
+            .map(|(f, p)| match p {
+                         Some(p) => format!("{} = @{}", f, p),
+                         None => format!("{} = NULL", f),
+                     }
+            )
             .collect::<Vec<String>>()
             .join(", ");
         trace!("build_update_fields_string: result: {}", result);
         Ok(result)
     }
 
-    fn get_value_parameter_names(&self) -> Result<Vec<(String, String)>> {
+    fn get_value_parameter_names(&self) -> Result<Vec<(String, Option<String>)>> {
         let mut values = self.get_sorted_selected_fields();
+        let existing_params: Vec<String> = self.params.iter().map(|p| p.name.clone().unwrap()).collect();
         let mut res = vec![];
         for (field, _) in values.iter_mut() {
             res.push((
                 Table::get_field_db_name(field)?,
-                Table::get_field_param_name(field)?,
+                match existing_params.contains(&Table::get_field_param_name(field)?) {
+                    true => Some(Table::get_field_param_name(field)?),
+                    false => None,
+                },
             ));
         }
         Ok(res)
@@ -516,7 +558,7 @@ impl<Table: BigQueryTable + Default + Debug>
 //region QueryTypeSelect
 //region client not needed
 impl<Table: BigQueryTable + Debug, Client: Debug, StartingData: Debug>
-    QueryBuilder<Table, QueryTypeSelect, Client, QueryWasNotBuilt, StartingData>
+QueryBuilder<Table, QueryTypeSelect, Client, QueryWasNotBuilt, StartingData>
 {
     pub fn add_order_by(
         mut self,
@@ -531,7 +573,7 @@ impl<Table: BigQueryTable + Debug, Client: Debug, StartingData: Debug>
 //endregion
 //region client needed
 impl<Table: BigQueryTable + Debug, StartingData: Debug>
-    QueryBuilder<Table, QueryTypeSelect, HasClient, QueryWasNotBuilt, StartingData>
+QueryBuilder<Table, QueryTypeSelect, HasClient, QueryWasNotBuilt, StartingData>
 {
     pub fn build_query(
         self,
@@ -566,7 +608,7 @@ impl<Table: BigQueryTable + Debug, StartingData: Debug>
 //endregion
 //region with_client
 impl<Table: BigQueryTable, QueryType, StartingData>
-    QueryBuilder<Table, QueryType, NoClient, QueryWasNotBuilt, StartingData>
+QueryBuilder<Table, QueryType, NoClient, QueryWasNotBuilt, StartingData>
 {
     pub fn with_client(
         self,
@@ -590,7 +632,7 @@ impl<Table: BigQueryTable, QueryType, StartingData>
 //endregion
 //region un_build & get query string
 impl<Table: BigQueryTable, QueryType, Client, StartingData>
-    QueryBuilder<Table, QueryType, Client, QueryWasBuilt, StartingData>
+QueryBuilder<Table, QueryType, Client, QueryWasBuilt, StartingData>
 {
     pub fn un_build(
         self,
@@ -616,7 +658,7 @@ impl<Table: BigQueryTable, QueryType, Client, StartingData>
 //endregion
 //region run
 impl<Table: BigQueryTable, QueryType: HasQueryType, StartingData>
-    QueryBuilder<Table, QueryType, HasClient, QueryWasBuilt, StartingData>
+QueryBuilder<Table, QueryType, HasClient, QueryWasBuilt, StartingData>
 {
     pub async fn run(self) -> Result<QueryResultType<Table>> {
         trace!("run query: {}", self.query);

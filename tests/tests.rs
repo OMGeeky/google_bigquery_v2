@@ -15,13 +15,13 @@ pub struct DbInfos {
     #[primary_key]
     #[db_name("Id")]
     row_id: i64,
-    info1: Option<String>,
+    info1: Option::<String>,
     #[db_name("info")]
-    info2: Option<String>,
-    info3: Option<String>,
-    info4i: Option<i32>,
+    info2: Option::<String>,
+    info3: Option::<String>,
+    info4i: Option::<i32>,
     #[db_name("yes")]
-    info4b: Option<bool>,
+    info4b: Option::<bool>,
 }
 
 pub struct DbInfos2 {
@@ -47,9 +47,9 @@ async fn test1() {
     debug!("select result: {:?}", result);
     let sample_data = DbInfos {
         client: client.clone(),
-        row_id: 1,
+        row_id: 9999,
         info1: Some("test1".to_string()),
-        info2: Some("test2".to_string()),
+        info2: None,
         info3: Some("test3".to_string()),
         info4i: Some(1),
         info4b: Some(true),
@@ -75,10 +75,10 @@ async fn test_save() {
         .expect("get_by_pk failed");
     entry.info1 = Some("test1".to_string());
     entry.info2 = Some("test2".to_string());
-    entry.info3 = Some("test3".to_string());
+    entry.info3 = None;
     entry.info4i = Some(1);
     entry.info4b = Some(true);
-    log::debug!("entry: {:?}", entry);
+    debug!("entry: {:?}", entry);
     debug!("========================================================================");
     debug!("starting save");
     debug!("========================================================================");
@@ -86,6 +86,18 @@ async fn test_save() {
     debug!("========================================================================");
     debug!("save done");
     debug!("========================================================================");
+    let info1 = entry.info1.clone().unwrap();
+    entry.info1 = Some("0987654321".to_string());
+
+    debug!("========================================================================");
+    debug!("starting reload");
+    debug!("========================================================================");
+    entry.reload().await.expect("reload failed");
+    debug!("========================================================================");
+    debug!("reload done");
+    debug!("========================================================================");
+    assert_eq!(info1, entry.info1.unwrap(), "reload failed");
+    assert_eq!(None, entry.info3, "Info 3 should be set to None before the save happened");
 }
 
 #[tokio::test]

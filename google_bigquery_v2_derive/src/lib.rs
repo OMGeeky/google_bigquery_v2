@@ -77,7 +77,7 @@ fn implement_get_all_params(ast: &DeriveInput, table_ident: &Ident) -> TokenStre
         let field_ident = f.field_ident;
         let field_name = f.local_name;
         quote::quote! {
-            #table_ident::get_parameter(&self.#field_ident, &#table_ident::get_field_param_name(&#field_name.to_string())?)?
+            #table_ident::get_parameter(&self.#field_ident, &#table_ident::get_field_param_name(&#field_name.to_string())?)
         }
     }
     let table_ident = &ast.ident;
@@ -87,7 +87,7 @@ fn implement_get_all_params(ast: &DeriveInput, table_ident: &Ident) -> TokenStre
         .map(|f| get_param_from_field(f, &table_ident));
 
     quote::quote! {
-        fn get_all_params(&self) -> google_bigquery_v2::prelude::Result<Vec<google_bigquery_v2::data::QueryParameter>> {
+        fn get_all_params(&self) -> google_bigquery_v2::prelude::Result<Vec<Option<google_bigquery_v2::data::QueryParameter>>> {
             log::trace!("get_all_params() self:{:?}", self);
             Ok(vec![
                 #(#fields),*
@@ -101,7 +101,7 @@ fn implement_get_parameter_from_field(ast: &DeriveInput, table_ident: &Ident) ->
         let field_ident = f.field_ident;
         let field_name = f.local_name;
         quote::quote! {
-            #field_name => #table_ident::get_parameter(&self.#field_ident, &#table_ident::get_field_param_name(&#field_name.to_string())?),
+            #field_name => Ok(#table_ident::get_parameter(&self.#field_ident, &#table_ident::get_field_param_name(&#field_name.to_string())?)),
         }
     }
     let table_ident = &ast.ident;
@@ -111,7 +111,7 @@ fn implement_get_parameter_from_field(ast: &DeriveInput, table_ident: &Ident) ->
         .map(|f| get_param_from_field(f, &table_ident));
 
     quote::quote! {
-        fn get_parameter_from_field(&self, field_name: &str) -> google_bigquery_v2::prelude::Result<google_bigquery_v2::data::QueryParameter> {
+        fn get_parameter_from_field(&self, field_name: &str) -> google_bigquery_v2::prelude::Result<Option<google_bigquery_v2::data::QueryParameter>> {
             log::trace!("get_parameter_from_field(); field_name: '{}' self:{:?}", field_name, self);
             match field_name {
                 #(#fields)*

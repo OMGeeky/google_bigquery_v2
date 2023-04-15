@@ -3,15 +3,15 @@ use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
+pub use google_bigquery2::api::{QueryParameterType, QueryParameterValue};
 pub use google_bigquery2::api::QueryParameter;
 use google_bigquery2::api::QueryRequest;
-pub use google_bigquery2::api::{QueryParameterType, QueryParameterValue};
 use log::debug;
 use log::trace;
 use serde_json::Value;
 
 use crate::client::BigqueryClient;
-use crate::data::param_conversion::{convert_value_to_string, BigDataValueType};
+use crate::data::param_conversion::{BigDataValueType, convert_value_to_string};
 use crate::data::query_builder::{
     NoClient, NoStartingData, QueryBuilder, QueryResultType, QueryTypeInsert, QueryTypeNoType,
     QueryTypeSelect, QueryTypeUpdate, QueryWasNotBuilt,
@@ -20,8 +20,8 @@ use crate::prelude::*;
 
 #[async_trait]
 pub trait BigQueryTableBase {
-    fn get_all_params(&self) -> Result<Vec<QueryParameter>>;
-    fn get_parameter_from_field(&self, field_name: &str) -> Result<QueryParameter>;
+    fn get_all_params(&self) -> Result<Vec<Option<QueryParameter>>>;
+    fn get_parameter_from_field(&self, field_name: &str) -> Result<Option<QueryParameter>>;
     //region get infos
     /// Returns the name of the table in the database.
     fn get_table_name() -> String;
@@ -53,12 +53,11 @@ pub trait BigQueryTableBase {
         client: BigqueryClient,
         row: &HashMap<String, Value>,
     ) -> Result<Self>
-    where
-        Self: Sized;
+        where
+            Self: Sized;
 
     //region update
 
-    //TODO: fn update(&mut self) -> Result<()>;
     //TODO: fn delete(&mut self) -> Result<()>;
 
     //endregion
@@ -69,26 +68,26 @@ pub trait BigQueryTableBase {
 #[async_trait]
 pub trait BigQueryTable: BigQueryTableBase {
     fn select() -> QueryBuilder<Self, QueryTypeSelect, NoClient, QueryWasNotBuilt, NoStartingData>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         QueryBuilder::<Self, QueryTypeNoType, NoClient, QueryWasNotBuilt, NoStartingData>::select()
     }
     fn insert() -> QueryBuilder<Self, QueryTypeInsert, NoClient, QueryWasNotBuilt, NoStartingData>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         QueryBuilder::<Self, QueryTypeNoType, NoClient, QueryWasNotBuilt, NoStartingData>::insert()
     }
     fn update() -> QueryBuilder<Self, QueryTypeUpdate, NoClient, QueryWasNotBuilt, NoStartingData>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         QueryBuilder::<Self, QueryTypeNoType, NoClient, QueryWasNotBuilt, NoStartingData>::update()
     }
-    fn get_parameter<T>(value: &T, param_name: &String) -> Result<QueryParameter>
-    where
-        T: BigDataValueType + Debug,
+    fn get_parameter<T>(value: &T, param_name: &String) -> Option<QueryParameter>
+        where
+            T: BigDataValueType + Debug,
     {
         trace!("get_parameter({:?}, {})", value, param_name);
         let value = value.to_param();
@@ -106,12 +105,7 @@ pub trait BigQueryTable: BigQueryTableBase {
                 value: Some(param_value),
                 ..Default::default()
             }),
-            Err(_) => todo!(
-                "a parameter value probably of sort null is not yet \
-            implemented. Does this even make sense or should the code that's \
-            calling this react if there is an error returned from this function \
-            and modify the where to be 'is null' instead of '== @__PARAM_x'?"
-            ),
+            Err(_) => return None,
         };
         debug!("param_value: {:?}", param_value);
 
@@ -120,7 +114,7 @@ pub trait BigQueryTable: BigQueryTableBase {
             parameter_value: param_value,
             name: Some(param_name.clone()),
         };
-        Ok(param)
+        Some(param)
     }
     fn get_field_param_name(field_name: &str) -> Result<String> {
         trace!("get_field_param_name({})", field_name);
@@ -153,9 +147,9 @@ pub trait BigQueryTable: BigQueryTableBase {
     }
 
     async fn get_by_pk<PK>(client: BigqueryClient, pk_value: &PK) -> Result<Self>
-    where
-        PK: BigDataValueType + Send + Sync + 'static,
-        Self: Sized + Debug,
+        where
+            PK: BigDataValueType + Send + Sync + 'static,
+            Self: Sized + Debug,
     {
         trace!("get_by_pk({:?}, {:?})", client, pk_value);
         let pk_field_name = Self::get_pk_field_name();
@@ -173,7 +167,7 @@ pub trait BigQueryTable: BigQueryTableBase {
                     "something went wrong when getting for {} = {:?};\tresult: {:?}",
                     pk_field_name, pk_value, success
                 )
-                .into());
+                    .into());
             }
         };
 
@@ -184,15 +178,15 @@ pub trait BigQueryTable: BigQueryTableBase {
                 "More than one entry found for {} = {:?}",
                 pk_db_name, pk_value
             )
-            .into())
+                .into())
         } else {
             Ok(rows.remove(0))
         }
     }
 
     async fn upsert(&mut self) -> Result<()>
-    where
-        Self: Sized + Clone + Send + Sync + Debug + Default,
+        where
+            Self: Sized + Clone + Send + Sync + Debug + Default,
     {
         trace!("upsert()");
 
@@ -217,8 +211,8 @@ pub trait BigQueryTable: BigQueryTableBase {
 
     /// proxy for update
     async fn save(&mut self) -> Result<()>
-    where
-        Self: Sized + Clone + Send + Sync + Debug + Default,
+        where
+            Self: Sized + Clone + Send + Sync + Debug + Default,
     {
         trace!("save(): {:?}", self);
         let result = Self::update()
@@ -238,7 +232,7 @@ pub trait BigQueryTable: BigQueryTableBase {
                 "save should return empty data, but returned {} rows.",
                 count
             )
-            .into())
+                .into())
         }
     }
 
