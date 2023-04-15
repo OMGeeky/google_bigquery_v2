@@ -5,6 +5,7 @@ use google_bigquery2::hyper::client::HttpConnector;
 use google_bigquery2::hyper_rustls::HttpsConnector;
 use google_bigquery2::Bigquery;
 use google_bigquery2::{hyper, hyper_rustls, oauth2};
+use google_bigquery2::client::NoToken;
 
 #[derive(Clone)]
 pub struct BigqueryClient {
@@ -21,15 +22,25 @@ impl Default for BigqueryClient {
 
 impl BigqueryClient {
     pub fn empty() -> BigqueryClient {
-        todo!()
+        let auth: NoToken = NoToken::default();
+        let client = Bigquery::new(
+            hyper::Client::builder().build(
+                hyper_rustls::HttpsConnectorBuilder::new()
+                    .with_native_roots()
+                    .https_or_http()
+                    .enable_http1()
+                    .enable_http2()
+                    .build(),
+            ),
+            auth,
+        );
+        BigqueryClient {
+            client,
+            project_id: "".to_string(),
+            dataset_id: "".to_string(),
+        }
     }
 }
-
-//TODO: check if this unsafe impl is needed
-unsafe impl Send for BigqueryClient {}
-
-//TODO: check if this unsafe impl is needed
-unsafe impl Sync for BigqueryClient {}
 
 impl BigqueryClient {
     pub async fn new<S: Into<String>>(

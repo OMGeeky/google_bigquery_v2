@@ -217,6 +217,12 @@ async fn test_select_limit_1() {
     assert_eq!(q.len(), 1);
 }
 
+#[test]
+fn test_empty_client(){
+    let empty_client = BigqueryClient::empty();
+    debug!("empty client: {:?}", empty_client);
+}
+
 fn init_logger() {
     let global_level = LevelFilter::Info;
     let own_level = LevelFilter::Trace;
