@@ -140,6 +140,13 @@ pub struct QueryTypeUpdate;
 impl HasQueryType for QueryTypeUpdate {}
 
 //endregion
+//region update
+#[derive(Debug, Clone)]
+pub struct QueryTypeDelete;
+
+impl HasQueryType for QueryTypeDelete {}
+
+//endregion
 
 //endregion
 
@@ -167,7 +174,7 @@ pub struct QueryBuilder<Table, QueryType, Client, QueryBuilt, StartingData> {
 
 //region default implementation for QueryBuilder
 impl<Table, QueryType, Client: Default, QueryBuilt, StartingData: Default> Default
-for QueryBuilder<Table, QueryType, Client, QueryBuilt, StartingData>
+    for QueryBuilder<Table, QueryType, Client, QueryBuilt, StartingData>
 {
     fn default() -> Self {
         Self {
@@ -189,7 +196,7 @@ for QueryBuilder<Table, QueryType, Client, QueryBuilt, StartingData>
 //region general QueryBuilder
 //region functions for all queries
 impl<Table: BigQueryTable, UnknownQueryType, Client, QueryBuilt, StartingData>
-QueryBuilder<Table, UnknownQueryType, Client, QueryBuilt, StartingData>
+    QueryBuilder<Table, UnknownQueryType, Client, QueryBuilt, StartingData>
 {
     fn get_sorted_selected_fields(&self) -> Vec<(String, String)> {
         trace!("get_sorted_selected_fields()");
@@ -214,7 +221,7 @@ QueryBuilder<Table, UnknownQueryType, Client, QueryBuilt, StartingData>
 //region functions for not built queries
 //region with Starting data
 impl<Table: BigQueryTable + Default, UnknownQueryType, Client>
-QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, HasStartingData<Table>>
+    QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, HasStartingData<Table>>
 {
     pub fn add_field_where(self, field: &str) -> Result<Self> {
         trace!("add_field_where(field: {})", field);
@@ -268,12 +275,12 @@ QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, HasStartingData<
 
 //endregion
 impl<Table: BigQueryTable + Debug, UnknownQueryType: Debug, Client: Debug, StartingData: Debug>
-QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, StartingData>
+    QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, StartingData>
 {
     //region set query content
     pub fn add_where_eq<T>(self, column: &str, value: Option<&T>) -> Result<Self>
-        where
-            T: BigDataValueType + Debug,
+    where
+        T: BigDataValueType + Debug,
     {
         trace!("add_where_eq({:?}, {:?})", column, value);
         let column = Table::get_field_db_name(column)?;
@@ -353,7 +360,7 @@ QueryBuilder<Table, UnknownQueryType, Client, QueryWasNotBuilt, StartingData>
 //endregion
 //region set_data
 impl<Table: BigQueryTable + Default + Debug, QueryType: HasQueryType, Client: Default>
-QueryBuilder<Table, QueryType, Client, QueryWasNotBuilt, NoStartingData>
+    QueryBuilder<Table, QueryType, Client, QueryWasNotBuilt, NoStartingData>
 {
     pub fn set_data(
         self,
@@ -378,13 +385,12 @@ QueryBuilder<Table, QueryType, Client, QueryWasNotBuilt, NoStartingData>
 //endregion
 //region QueryTypeNoType
 impl<Table: BigQueryTable, Client: Default, StartingData: Default>
-QueryBuilder<Table, QueryTypeNoType, Client, QueryWasNotBuilt, StartingData>
+    QueryBuilder<Table, QueryTypeNoType, Client, QueryWasNotBuilt, StartingData>
 {
     pub fn select() -> QueryBuilder<Table, QueryTypeSelect, NoClient, QueryWasNotBuilt, StartingData>
     {
         trace!("select()");
         QueryBuilder {
-            query: String::from("SELECT "),
             ..Default::default()
         }
     }
@@ -392,7 +398,6 @@ QueryBuilder<Table, QueryTypeNoType, Client, QueryWasNotBuilt, StartingData>
     {
         trace!("insert()");
         QueryBuilder {
-            query: String::from("INSERT INTO "),
             ..Default::default()
         }
     }
@@ -400,7 +405,13 @@ QueryBuilder<Table, QueryTypeNoType, Client, QueryWasNotBuilt, StartingData>
     {
         trace!("update()");
         QueryBuilder {
-            query: String::from("INSERT INTO "),
+            ..Default::default()
+        }
+    }
+    pub fn delete() -> QueryBuilder<Table, QueryTypeDelete, NoClient, QueryWasNotBuilt, StartingData>
+    {
+        trace!("delete()");
+        QueryBuilder {
             ..Default::default()
         }
     }
@@ -409,7 +420,37 @@ QueryBuilder<Table, QueryTypeNoType, Client, QueryWasNotBuilt, StartingData>
 //endregion
 //region QueryTypeInsert
 impl<Table: BigQueryTable + Default + Debug>
-QueryBuilder<Table, QueryTypeInsert, HasClient, QueryWasNotBuilt, HasStartingData<Table>>
+    QueryBuilder<Table, QueryTypeDelete, HasClient, QueryWasNotBuilt, HasStartingData<Table>>
+{
+    pub fn build_query(
+        mut self,
+    ) -> Result<
+        QueryBuilder<Table, QueryTypeDelete, HasClient, QueryWasBuilt, HasStartingData<Table>>,
+    > {
+        trace!("build_query: delete: {:?}", self);
+        let table_identifier = Table::get_table_identifier_from_client(&self.client.0);
+        self = self.add_field_where(&Table::get_pk_field_name())?;
+        let where_clause = &self.build_where_string();
+
+        let query = format!("DELETE FROM {} {}", table_identifier, where_clause);
+        Ok(QueryBuilder {
+            query,
+            params: self.params,
+            where_clauses: self.where_clauses,
+            order_by: self.order_by,
+            limit: self.limit,
+            client: self.client,
+            table: self.table,
+            starting_data: self.starting_data,
+            query_type: self.query_type,
+            query_built: PhantomData,
+        })
+    }
+}
+
+//region QueryTypeInsert
+impl<Table: BigQueryTable + Default + Debug>
+    QueryBuilder<Table, QueryTypeInsert, HasClient, QueryWasNotBuilt, HasStartingData<Table>>
 {
     pub fn build_query(
         mut self,
@@ -461,9 +502,21 @@ QueryBuilder<Table, QueryTypeInsert, HasClient, QueryWasNotBuilt, HasStartingDat
     fn get_value_parameter_names(&self) -> Result<Vec<Option<String>>> {
         trace!("get_value_parameter_names\tself: {:?}", self);
         let mut values = self.get_sorted_selected_fields();
-        let existing_params: Vec<String> = self.params.iter().map(|p| p.name.clone().unwrap()).collect();
-        debug!("existing_params: len: {} params: {:?}", existing_params.len(), existing_params);
-        debug!("selected_fields: len: {} fields: {:?}", values.len(), values);
+        let existing_params: Vec<String> = self
+            .params
+            .iter()
+            .map(|p| p.name.clone().unwrap())
+            .collect();
+        debug!(
+            "existing_params: len: {} params: {:?}",
+            existing_params.len(),
+            existing_params
+        );
+        debug!(
+            "selected_fields: len: {} fields: {:?}",
+            values.len(),
+            values
+        );
         let res = values
             .iter_mut()
             .map(|(field, _)| match Table::get_field_param_name(field) {
@@ -484,7 +537,7 @@ QueryBuilder<Table, QueryTypeInsert, HasClient, QueryWasNotBuilt, HasStartingDat
 //endregion
 //region QueryTypeUpdate
 impl<Table: BigQueryTable + Default + Debug>
-QueryBuilder<Table, QueryTypeUpdate, HasClient, QueryWasNotBuilt, HasStartingData<Table>>
+    QueryBuilder<Table, QueryTypeUpdate, HasClient, QueryWasNotBuilt, HasStartingData<Table>>
 {
     pub fn build_query(
         mut self,
@@ -527,10 +580,9 @@ QueryBuilder<Table, QueryTypeUpdate, HasClient, QueryWasNotBuilt, HasStartingDat
             .get_value_parameter_names()?
             .into_iter()
             .map(|(f, p)| match p {
-                         Some(p) => format!("{} = @{}", f, p),
-                         None => format!("{} = NULL", f),
-                     }
-            )
+                Some(p) => format!("{} = @{}", f, p),
+                None => format!("{} = NULL", f),
+            })
             .collect::<Vec<String>>()
             .join(", ");
         trace!("build_update_fields_string: result: {}", result);
@@ -539,7 +591,11 @@ QueryBuilder<Table, QueryTypeUpdate, HasClient, QueryWasNotBuilt, HasStartingDat
 
     fn get_value_parameter_names(&self) -> Result<Vec<(String, Option<String>)>> {
         let mut values = self.get_sorted_selected_fields();
-        let existing_params: Vec<String> = self.params.iter().map(|p| p.name.clone().unwrap()).collect();
+        let existing_params: Vec<String> = self
+            .params
+            .iter()
+            .map(|p| p.name.clone().unwrap())
+            .collect();
         let mut res = vec![];
         for (field, _) in values.iter_mut() {
             res.push((
@@ -558,7 +614,7 @@ QueryBuilder<Table, QueryTypeUpdate, HasClient, QueryWasNotBuilt, HasStartingDat
 //region QueryTypeSelect
 //region client not needed
 impl<Table: BigQueryTable + Debug, Client: Debug, StartingData: Debug>
-QueryBuilder<Table, QueryTypeSelect, Client, QueryWasNotBuilt, StartingData>
+    QueryBuilder<Table, QueryTypeSelect, Client, QueryWasNotBuilt, StartingData>
 {
     pub fn add_order_by(
         mut self,
@@ -573,7 +629,7 @@ QueryBuilder<Table, QueryTypeSelect, Client, QueryWasNotBuilt, StartingData>
 //endregion
 //region client needed
 impl<Table: BigQueryTable + Debug, StartingData: Debug>
-QueryBuilder<Table, QueryTypeSelect, HasClient, QueryWasNotBuilt, StartingData>
+    QueryBuilder<Table, QueryTypeSelect, HasClient, QueryWasNotBuilt, StartingData>
 {
     pub fn build_query(
         self,
@@ -608,7 +664,7 @@ QueryBuilder<Table, QueryTypeSelect, HasClient, QueryWasNotBuilt, StartingData>
 //endregion
 //region with_client
 impl<Table: BigQueryTable, QueryType, StartingData>
-QueryBuilder<Table, QueryType, NoClient, QueryWasNotBuilt, StartingData>
+    QueryBuilder<Table, QueryType, NoClient, QueryWasNotBuilt, StartingData>
 {
     pub fn with_client(
         self,
@@ -632,7 +688,7 @@ QueryBuilder<Table, QueryType, NoClient, QueryWasNotBuilt, StartingData>
 //endregion
 //region un_build & get query string
 impl<Table: BigQueryTable, QueryType, Client, StartingData>
-QueryBuilder<Table, QueryType, Client, QueryWasBuilt, StartingData>
+    QueryBuilder<Table, QueryType, Client, QueryWasBuilt, StartingData>
 {
     pub fn un_build(
         self,
@@ -658,7 +714,7 @@ QueryBuilder<Table, QueryType, Client, QueryWasBuilt, StartingData>
 //endregion
 //region run
 impl<Table: BigQueryTable, QueryType: HasQueryType, StartingData>
-QueryBuilder<Table, QueryType, HasClient, QueryWasBuilt, StartingData>
+    QueryBuilder<Table, QueryType, HasClient, QueryWasBuilt, StartingData>
 {
     pub async fn run(self) -> Result<QueryResultType<Table>> {
         trace!("run query: {}", self.query);

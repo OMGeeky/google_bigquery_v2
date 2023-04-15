@@ -1,10 +1,7 @@
 use log::{debug, info, LevelFilter};
 use nameof::name_of;
 
-use google_bigquery_v2::data::query_builder::{
-    HasStartingData, NoClient, NoStartingData, QueryBuilder, QueryResultType, QueryTypeInsert,
-    QueryTypeNoType, QueryTypeSelect, QueryTypeUpdate, QueryWasNotBuilt,
-};
+use google_bigquery_v2::data::query_builder::QueryResultType;
 use google_bigquery_v2::prelude::*;
 
 #[derive(BigDataTableDerive, Debug, Default, Clone)]
@@ -22,16 +19,6 @@ pub struct DbInfos {
     info4i: Option::<i32>,
     #[db_name("yes")]
     info4b: Option::<bool>,
-}
-
-pub struct DbInfos2 {
-    client: BigqueryClient,
-    row_id: i64,
-    info1: Option<String>,
-    info2: Option<String>,
-    info3: Option<String>,
-    info4i: Option<i32>,
-    info4b: Option<bool>,
 }
 
 #[tokio::test]
@@ -56,14 +43,24 @@ async fn test1() {
     };
 
     let query_builder = DbInfos::insert();
-    println!("{:?}", query_builder);
-    let query_builder = query_builder.with_client(client);
-    let query_builder = query_builder.set_data(sample_data);
+    debug!("{:?}", query_builder);
+    let query_builder = query_builder.with_client(client.clone());
+    let query_builder = query_builder.set_data(sample_data.clone());
     let query_builder = query_builder.build_query().expect("query builder failed");
-    println!("query: {:?}", query_builder);
+    debug!("query: {:?}", query_builder);
     let result = query_builder.clone().run().await;
-    println!("query: {:?}", query_builder);
-    println!("result: {:?}", result);
+    debug!("query: {:?}", query_builder);
+    debug!("result: {:?}", result);
+
+    let query_builder = DbInfos::delete()
+        .with_client(client.clone())
+        .set_data(sample_data);
+    let query_builder = query_builder.build_query().expect("query builder failed");
+    debug!("query: {:?}", query_builder);
+    let result = query_builder.clone().run().await;
+    debug!("query: {:?}", query_builder);
+    debug!("result: {:?}", result);
+    result.expect("result is not ok");
 }
 
 #[tokio::test]
@@ -76,8 +73,8 @@ async fn test_save() {
     entry.info1 = Some("test1".to_string());
     entry.info2 = Some("test2".to_string());
     entry.info3 = None;
-    entry.info4i = Some(1);
     entry.info4b = Some(true);
+    let info4i = entry.info4i;
     debug!("entry: {:?}", entry);
     debug!("========================================================================");
     debug!("starting save");
@@ -97,14 +94,21 @@ async fn test_save() {
     debug!("reload done");
     debug!("========================================================================");
     assert_eq!(info1, entry.info1.unwrap(), "reload failed");
-    assert_eq!(None, entry.info3, "Info 3 should be set to None before the save happened");
+    assert_eq!(
+        None, entry.info3,
+        "Info 3 should be set to None before the save happened"
+    );
+    assert_eq!(
+        info4i, entry.info4i,
+        "Info 4i should not have changed between the load from pk and the reload"
+    );
 }
 
 #[tokio::test]
 async fn test_get_table_name() {
     init_logger();
     let pk = DbInfos::get_table_name();
-    log::debug!("table name: {}", pk);
+    debug!("table name: {}", pk);
     assert_eq!("Infos", pk, "table name is not correct")
 }
 
@@ -112,7 +116,7 @@ async fn test_get_table_name() {
 async fn test_get_query_fields() {
     init_logger();
     let fields = DbInfos::get_query_fields(true);
-    log::debug!("fields: {:?}", fields);
+    debug!("fields: {:?}", fields);
     assert_eq!(6, fields.len(), "fields length is not correct");
     assert_eq!("Id", fields.get("row_id").unwrap(),);
     assert_eq!("info1", fields.get("info1").unwrap(),);
@@ -142,9 +146,9 @@ async fn test_query_builder_1() {
     let expected_query_string =
         "SELECT info1, info, info3, yes, info4i, Id FROM `testrustproject-372221.test1.Infos` WHERE info1 is NULL AND info3 = @__PARAM_0 ORDER BY info ASC".to_string()
         ;
-    log::debug!("query   : {}", query_string);
-    log::debug!("expected: {}", expected_query_string);
-    log::debug!("request: {:?}", query_builder.clone().build_query());
+    debug!("query   : {}", query_string);
+    debug!("expected: {}", expected_query_string);
+    debug!("request: {:?}", query_builder.clone().build_query());
 
     assert_eq!(query_string, expected_query_string);
     // assert_eq!(
@@ -163,7 +167,7 @@ async fn test_query_builder_1() {
         .run()
         .await
         .unwrap();
-    log::debug!("res: {:?}", res);
+    debug!("res: {:?}", res);
 }
 
 async fn get_test_client() -> BigqueryClient {
