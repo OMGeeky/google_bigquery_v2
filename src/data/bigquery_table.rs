@@ -214,7 +214,7 @@ pub trait BigQueryTable: BigQueryTableBase {
     }
 
     /// proxy for update
-    async fn save(&mut self) -> Result<()>
+    async fn save(&self) -> Result<()>
     where
         Self: Sized + Clone + Send + Sync + Debug + Default,
     {
