@@ -88,7 +88,7 @@ fn implement_get_all_params(ast: &DeriveInput, table_ident: &Ident) -> TokenStre
 
     quote::quote! {
         fn get_all_params(&self) -> google_bigquery_v2::prelude::Result<Vec<Option<google_bigquery_v2::data::QueryParameter>>> {
-            google_bigquery_v2::re_exports::log::trace!("get_all_params() self:{:?}", self);
+            google_bigquery_v2::prelude::trace!("get_all_params() self:{:?}", self);
             Ok(vec![
                 #(#fields),*
             ])
@@ -112,7 +112,7 @@ fn implement_get_parameter_from_field(ast: &DeriveInput, table_ident: &Ident) ->
 
     quote::quote! {
         fn get_parameter_from_field(&self, field_name: &str) -> google_bigquery_v2::prelude::Result<Option<google_bigquery_v2::data::QueryParameter>> {
-            google_bigquery_v2::re_exports::log::trace!("get_parameter_from_field(); field_name: '{}' self:{:?}", field_name, self);
+            google_bigquery_v2::prelude::trace!("get_parameter_from_field(); field_name: '{}' self:{:?}", field_name, self);
             match field_name {
                 #(#fields)*
                 _ => Err(format!("Field {} not found", field_name).into()),
@@ -127,7 +127,7 @@ fn implement_get_client(client_field: &Field) -> TokenStream {
     let client_ident = client_field.field_ident.clone();
     quote::quote! {
         fn get_client(&self) -> &BigqueryClient {
-            google_bigquery_v2::re_exports::log::trace!("get_client() self={:?}", self);
+            google_bigquery_v2::prelude::trace!("get_client() self={:?}", self);
             &self.#client_ident
         }
     }
@@ -137,7 +137,7 @@ fn implement_set_client(client_field: &Field) -> TokenStream {
     let client_ident = client_field.field_ident.clone();
     quote::quote! {
         fn set_client(&mut self, client: BigqueryClient) {
-            google_bigquery_v2::re_exports::log::trace!("set_client() self={:?}", self);
+            google_bigquery_v2::prelude::trace!("set_client() self={:?}", self);
             self.#client_ident = client;
         }
     }
@@ -147,7 +147,7 @@ fn implement_get_pk_field_name(pk_field: &Field) -> TokenStream {
     let pk_local_name = pk_field.local_name.clone();
     quote::quote! {
         fn get_pk_field_name() -> String {
-            google_bigquery_v2::re_exports::log::trace!("get_pk_field_name()");
+            google_bigquery_v2::prelude::trace!("get_pk_field_name()");
             String::from(#pk_local_name)
         }
     }
@@ -157,7 +157,7 @@ fn implement_get_pk_db_name(pk_field: &Field) -> TokenStream {
     let pk_db_name = pk_field.db_name.clone();
     quote::quote! {
         fn get_pk_db_name() -> String {
-            google_bigquery_v2::re_exports::log::trace!("get_pk_db_name()");
+            google_bigquery_v2::prelude::trace!("get_pk_db_name()");
             String::from(#pk_db_name)
         }
     }
@@ -167,7 +167,7 @@ fn implement_get_pk_value(pk_field: &Field) -> TokenStream {
     let pk_ident = &pk_field.field_ident;
     quote::quote! {
         fn get_pk_value(&self) -> &(dyn google_bigquery_v2::data::param_conversion::BigDataValueType + Send + Sync) {
-            google_bigquery_v2::re_exports::log::trace!("get_pk_value() self={:?}", self);
+            google_bigquery_v2::prelude::trace!("get_pk_value() self={:?}", self);
             &self.#pk_ident
         }
     }
@@ -193,7 +193,7 @@ fn implement_get_query_fields(ast: &DeriveInput) -> TokenStream {
 
     quote::quote! {
         fn get_query_fields(include_pk: bool) -> std::collections::HashMap<String, String> {
-            google_bigquery_v2::re_exports::log::trace!("get_query_fields() include_pk={}", include_pk);
+            google_bigquery_v2::prelude::trace!("get_query_fields() include_pk={}", include_pk);
             let mut map = std::collections::HashMap::new();
             if(include_pk) {
                 #pk_insert
@@ -207,7 +207,7 @@ fn implement_get_query_fields(ast: &DeriveInput) -> TokenStream {
 fn implement_impl_get_table_name(table_name: &String) -> TokenStream {
     quote::quote! {
         fn get_table_name() -> String {
-            google_bigquery_v2::re_exports::log::trace!("get_table_name()");
+            google_bigquery_v2::prelude::trace!("get_table_name()");
             String::from(#table_name)
         }
     }
@@ -227,7 +227,7 @@ fn implement_set_field_value(ast: &DeriveInput) -> TokenStream {
 
     quote::quote! {
         fn set_field_value(&mut self, field_name: &str, value: &google_bigquery_v2::re_exports::serde_json::Value) -> Result<()>{
-            google_bigquery_v2::re_exports::log::trace!("set_field_value() self={:?} field_name={} value={:?}", self, field_name, value);
+            google_bigquery_v2::prelude::trace!("set_field_value() self={:?} field_name={} value={:?}", self, field_name, value);
             use google_bigquery_v2::data::param_conversion::ConvertBigQueryParams;
             match field_name {
                 #(#fields)*
@@ -250,7 +250,7 @@ fn implement_get_field_value(ast: &DeriveInput) -> TokenStream {
 
     quote::quote! {
         fn get_field_value(&self, field_name: &str) -> Result<google_bigquery_v2::re_exports::serde_json::Value> {
-            google_bigquery_v2::re_exports::log::trace!("get_field_value() self={:?} field_name={}", self, field_name);
+            google_bigquery_v2::prelude::trace!("get_field_value() self={:?} field_name={}", self, field_name);
             use google_bigquery_v2::data::param_conversion::ConvertBigQueryParams;
             match field_name {
                 #(#fields)*
@@ -278,7 +278,7 @@ fn implement_from_query_result_row(ast: &DeriveInput) -> TokenStream {
         row: &std::collections::HashMap<String, google_bigquery_v2::re_exports::serde_json::Value>,
     ) -> Result<Self>
         where Self: Sized {
-            google_bigquery_v2::re_exports::log::trace!("new_from_query_result_row() client={:?} row={:?}", client, row);
+            google_bigquery_v2::prelude::trace!("new_from_query_result_row() client={:?} row={:?}", client, row);
             use google_bigquery_v2::data::param_conversion::ConvertBigQueryParams;
             let result = Self{
                 #client_ident: client,
@@ -296,7 +296,7 @@ fn implement_reload(pk_field: &Field) -> TokenStream {
             where
                 Self: Sized + Send + Sync,
         {
-            google_bigquery_v2::re_exports::log::trace!("reload()");
+            google_bigquery_v2::prelude::trace!("reload()");
             let value = &self.#pk_value;//TODO: this is the problem!. it just does not want to work
             Self::get_by_pk(self.get_client().clone(), value).await.map(|mut t| {
                 *self = t;

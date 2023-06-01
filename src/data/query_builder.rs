@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 
 use google_bigquery2::api::{ErrorProto, QueryParameter, QueryRequest};
 use google_bigquery2::hyper::{Body, Response};
-use log::{debug, trace};
+use crate::prelude::*;
 use serde_json::Value;
 
 use crate::data::param_conversion::BigDataValueType;
@@ -201,7 +201,7 @@ impl<Table: BigQueryTable, UnknownQueryType, Client, QueryBuilt, StartingData>
     fn get_sorted_selected_fields(&self) -> Vec<(String, String)> {
         trace!("get_sorted_selected_fields()");
         let mut fields: Vec<(String, String)> = Table::get_query_fields(true).into_iter().collect();
-        log::debug!("fields: {:?}", fields);
+        debug!("fields: {:?}", fields);
         fields.sort();
         fields
     }
@@ -460,7 +460,7 @@ impl<Table: BigQueryTable + Default + Debug>
         trace!("build_query: insert: {:?}", self);
         let table_identifier = Table::get_table_identifier_from_client(&self.client.0);
         let params = &self.params;
-        log::warn!("params are not used in insert query: {:?}", params);
+        warn!("params are not used in insert query: {:?}", params);
         self.add_params_for_table_query_fields()?;
         let fields = self.get_fields_string();
         let values = self.get_values_params_string()?;
@@ -552,7 +552,7 @@ impl<Table: BigQueryTable + Default + Debug>
         }
         let where_clause = self.build_where_string();
         let params = &self.params;
-        log::warn!("params are not used in update query: {:?}", params);
+        warn!("params are not used in update query: {:?}", params);
         self.add_params_for_table_query_fields()?;
         let fields_str = self.build_update_fields_string()?;
 
