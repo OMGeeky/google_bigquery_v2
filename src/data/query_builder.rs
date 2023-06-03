@@ -551,8 +551,7 @@ impl<Table: BigQueryTable + Default + Debug>
             self = self.add_field_where(&Table::get_pk_field_name())?;
         }
         let where_clause = self.build_where_string();
-        let params = &self.params;
-        warn!("params are not used in update query: {:?}", params);
+        let params_str = format!("{:?}", &self.params);
         self.add_params_for_table_query_fields()?;
         let fields_str = self.build_update_fields_string()?;
 
@@ -560,6 +559,11 @@ impl<Table: BigQueryTable + Default + Debug>
             "update {} set {} {}",
             table_identifier, fields_str, where_clause
         );
+        warn!(
+            "params are not used in update query: {:?}, query: {}",
+            params_str, query
+        );
+        debug!(query);
         Ok(QueryBuilder {
             query,
             params: self.params,
