@@ -563,7 +563,6 @@ impl<Table: BigQueryTable + Default + Debug>
             "params are not used in update query: {:?}, query: {}",
             params_str, query
         );
-        debug!(query);
         Ok(QueryBuilder {
             query,
             params: self.params,
