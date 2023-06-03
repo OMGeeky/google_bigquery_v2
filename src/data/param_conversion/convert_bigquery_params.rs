@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use chrono::{NaiveDateTime, Utc};
-use crate::prelude::*;
 use serde_json::{value, Value};
 
 use crate::prelude::*;
@@ -138,13 +137,15 @@ pub fn convert_value_to_string(value: Value) -> Result<String> {
         trace!("ConvertValueToBigqueryParamValue::convert_value_type_to_bigquery_type: String");
         Ok(value::from_value(value)?)
     } else {
-        warn!("Unknown type: {:?}", value);
-        if value == Value::Null {
-            return Err("Value is Null".into());
+        match value {
+            Value::Null => Err("Value is Null".into()),
+            Value::Number(num) => Ok(num.to_string()),
+            Value::String(s) => Ok(s),
+            _ => {
+                warn!("Unknown type: {:?}", value);
+                //TODO: check if this is correct with for example 'DATETIME' values
+                Ok(value.to_string())
+            }
         }
-        //TODO: check if this is correct with for example 'DATETIME' values
-        // Err(format!("Unknown type: {:?}", value).into())
-        let string = value.to_string();
-        Ok(string)
     };
 }
