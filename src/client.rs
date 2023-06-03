@@ -1,11 +1,11 @@
 use std::error::Error;
 use std::fmt::Debug;
 
+use google_bigquery2::client::NoToken;
 use google_bigquery2::hyper::client::HttpConnector;
 use google_bigquery2::hyper_rustls::HttpsConnector;
 use google_bigquery2::Bigquery;
 use google_bigquery2::{hyper, hyper_rustls, oauth2};
-use google_bigquery2::client::NoToken;
 
 #[derive(Clone)]
 pub struct BigqueryClient {

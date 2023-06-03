@@ -12,13 +12,13 @@ pub struct DbInfos {
     #[primary_key]
     #[db_name("Id")]
     row_id: i64,
-    info1: Option::<String>,
+    info1: Option<String>,
     #[db_name("info")]
-    info2: Option::<String>,
-    info3: Option::<String>,
-    info4i: Option::<i32>,
+    info2: Option<String>,
+    info3: Option<String>,
+    info4i: Option<i32>,
     #[db_name("yes")]
-    info4b: Option::<bool>,
+    info4b: Option<bool>,
 }
 
 #[tokio::test]
@@ -218,7 +218,7 @@ async fn test_select_limit_1() {
 }
 
 #[test]
-fn test_empty_client(){
+fn test_empty_client() {
     let empty_client = BigqueryClient::empty();
     debug!("empty client: {:?}", empty_client);
 }

@@ -3,9 +3,9 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 
+use crate::prelude::*;
 use google_bigquery2::api::{ErrorProto, QueryParameter, QueryRequest};
 use google_bigquery2::hyper::{Body, Response};
-use crate::prelude::*;
 use serde_json::Value;
 
 use crate::data::param_conversion::BigDataValueType;

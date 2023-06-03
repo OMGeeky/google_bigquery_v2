@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+use crate::prelude::*;
 use async_trait::async_trait;
 pub use google_bigquery2::api::QueryParameter;
 pub use google_bigquery2::api::{QueryParameterType, QueryParameterValue};
-use crate::prelude::*;
 use serde_json::Value;
 
 use crate::client::BigqueryClient;
