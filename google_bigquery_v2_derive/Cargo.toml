@@ -1,6 +1,6 @@
 [package]
 name = "google_bigquery_v2_derive"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["OMGeeky <aalaalgmx@gmail.com>"]
 edition = "2021"
 
