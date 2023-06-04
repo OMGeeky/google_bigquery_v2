@@ -8,7 +8,9 @@ pub use google_bigquery2::api::{QueryParameterType, QueryParameterValue};
 use serde_json::Value;
 
 use crate::client::BigqueryClient;
-use crate::data::param_conversion::{convert_value_to_string, BigDataValueType};
+use crate::data::param_conversion::{
+    convert_value_to_string, BigDataValueType, ConvertBigQueryParams,
+};
 use crate::data::query_builder::{
     NoClient, NoStartingData, QueryBuilder, QueryResultType, QueryTypeDelete, QueryTypeInsert,
     QueryTypeNoType, QueryTypeSelect, QueryTypeUpdate, QueryWasNotBuilt,
@@ -247,6 +249,23 @@ pub trait BigQueryTable: BigQueryTableBase {
             self.set_field_value(&field_name, &value)?;
         }
         Ok(())
+    }
+
+    /// converts the value to Result<T> by using T::from_param(value)
+    ///
+    /// this is basically just a wrapper so we don't need to know the type
+    /// of the field in the derive macro (or at least we don't need to write it)
+    /// like this:
+    ///
+    /// self.info1 = Option::<String>::from_param(value)?
+    ///
+    /// instead we can just call:
+    ///
+    /// self.info1 = Self::from_param(value)?;
+    ///
+    /// and the types will be inferred
+    fn from_param<T: ConvertBigQueryParams>(value: &Value) -> Result<T> {
+        T::from_param(value)
     }
 }
 

@@ -217,9 +217,8 @@ fn implement_set_field_value(ast: &DeriveInput) -> TokenStream {
     fn write_set_field_value(f: Field) -> TokenStream {
         let field_ident = f.field_ident;
         let local_name = f.local_name;
-        let field_type = f.ty;
         quote::quote! {
-            #local_name => self.#field_ident = #field_type::from_param(value)?,
+            #local_name => self.#field_ident = Self::from_param(value)?,
         }
     }
     let fields = get_fields_without_client(&ast.data);
@@ -263,10 +262,9 @@ fn implement_get_field_value(ast: &DeriveInput) -> TokenStream {
 fn implement_from_query_result_row(ast: &DeriveInput) -> TokenStream {
     fn set_field_value(f: Field) -> TokenStream {
         let field_ident = f.field_ident;
-        let field_type = f.ty;
         let db_name = f.db_name;
         quote::quote! {
-            #field_ident: #field_type::from_param(&row[#db_name])?,
+            #field_ident: Self::from_param(&row[#db_name])?,
         }
     }
     let client_ident = get_client_field(&ast.data).field_ident;
