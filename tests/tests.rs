@@ -216,6 +216,31 @@ async fn test_select_limit_1() {
     assert_eq!(q.len(), 1);
 }
 
+#[tokio::test]
+async fn test_upsert() {
+    init_logger();
+    let client = get_test_client().await;
+    let mut local = DbInfos {
+        client: client.clone(),
+        row_id: 1923,
+        info1: None,
+        info2: None,
+        info3: None,
+        info4i: None,
+        info4b: None,
+    };
+    local.upsert().await.expect("could not perform upsert!");
+    DbInfos::delete()
+        .with_client(client)
+        .set_data(local)
+        .build_query()
+        .expect("could not build delete")
+        .run()
+        .await
+        .expect("could not run delete")
+        .expect_without_data("delete should not return any data");
+}
+
 #[test]
 fn test_empty_client() {
     let empty_client = BigqueryClient::empty();
