@@ -57,12 +57,17 @@ impl<T: Debug> QueryResultType<T> {
     pub fn map_err_without_data(self, message: impl Into<String>) -> Result<()> {
         match self {
             QueryResultType::WithoutRowData(result) => result,
-            QueryResultType::WithRowData(data) => Err(format!(
-                "map_err_without_data message:'{}' data: {:?}",
-                message.into(),
-                data
-            )
-            .into()),
+            QueryResultType::WithRowData(data) => {
+                if data.len() == 0 {
+                    return Ok(());
+                }
+                return Err(format!(
+                    "map_err_without_data message:'{}' data: {:?}",
+                    message.into(),
+                    data
+                )
+                .into());
+            }
         }
     }
     pub fn expect_with_data(self, message: impl Into<String>) -> Vec<T> {
