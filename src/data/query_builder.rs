@@ -45,7 +45,7 @@ pub enum QueryResultType<Table> {
     WithoutRowData(Result<()>),
 }
 
-impl<T> QueryResultType<T> {
+impl<T: Debug> QueryResultType<T> {
     pub fn map_err_with_data(self, message: impl Into<String>) -> Result<Vec<T>> {
         match self {
             QueryResultType::WithRowData(data) => Ok(data),
@@ -57,26 +57,19 @@ impl<T> QueryResultType<T> {
     pub fn map_err_without_data(self, message: impl Into<String>) -> Result<()> {
         match self {
             QueryResultType::WithoutRowData(result) => result,
-            QueryResultType::WithRowData(_) => {
-                Err(format!("map_err_without_data message:{}", message.into()).into())
-            }
+            QueryResultType::WithRowData(data) => Err(format!(
+                "map_err_without_data message:'{}' data: {:?}",
+                message.into(),
+                data
+            )
+            .into()),
         }
     }
     pub fn expect_with_data(self, message: impl Into<String>) -> Vec<T> {
-        match self {
-            QueryResultType::WithRowData(data) => data,
-            QueryResultType::WithoutRowData(_) => {
-                panic!("expect_with_data message:{}", message.into())
-            }
-        }
+        self.map_err_with_data(message).unwrap()
     }
-    pub fn expect_without_data(self, message: impl Into<String>) -> Result<()> {
-        match self {
-            QueryResultType::WithoutRowData(result) => result,
-            QueryResultType::WithRowData(_) => {
-                panic!("expect_without_data message:{}", message.into())
-            }
-        }
+    pub fn expect_without_data(self, message: impl Into<String>) -> () {
+        self.map_err_without_data(message).unwrap()
     }
     pub fn is_with_row_data(&self) -> bool {
         match self {
