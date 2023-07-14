@@ -40,7 +40,7 @@ impl ConvertBigQueryParams for bool {
             "true" => Ok(true),
             "FALSE" => Ok(false),
             "false" => Ok(false),
-            invalid => Err(format!("Invalid value for bool: '{}'", invalid).into()),
+            invalid => Err(anyhow!("Invalid value for bool: '{}'", invalid)),
         }
     }
     fn to_param(&self) -> Value {
@@ -138,7 +138,7 @@ pub fn convert_value_to_string(value: Value) -> Result<String> {
         Ok(value::from_value(value)?)
     } else {
         match value {
-            Value::Null => Err("Value is Null".into()),
+            Value::Null => Err(anyhow!("Value is Null")),
             Value::Number(num) => Ok(num.to_string()),
             Value::String(s) => Ok(s),
             _ => {

@@ -131,7 +131,7 @@ pub trait BigQueryTable: BigQueryTableBase {
         let query_fields = Self::get_query_fields(true);
         let db_name = query_fields.get(field_name);
         match db_name {
-            None => Err(format!("Field {} not found.", field_name).into()),
+            None => Err(anyhow!("Field {} not found.", field_name).into()),
             Some(s) => Ok(s.to_string()),
         }
     }
@@ -168,20 +168,23 @@ pub trait BigQueryTable: BigQueryTableBase {
         let mut rows = match result {
             QueryResultType::WithRowData(data) => data,
             QueryResultType::WithoutRowData(success) => {
-                return Err(format!(
+                return Err(anyhow!(
                     "something went wrong when getting for {} = {:?};\tresult: {:?}",
-                    pk_field_name, pk_value, success
+                    pk_field_name,
+                    pk_value,
+                    success
                 )
                 .into());
             }
         };
 
         if rows.len() == 0 {
-            Err(format!("No entry found for {} = {:?}", pk_db_name, pk_value).into())
+            Err(anyhow!("No entry found for {} = {:?}", pk_db_name, pk_value).into())
         } else if rows.len() > 1 {
-            Err(format!(
+            Err(anyhow!(
                 "More than one entry found for {} = {:?}",
-                pk_db_name, pk_value
+                pk_db_name,
+                pk_value
             )
             .into())
         } else {
@@ -233,7 +236,7 @@ pub trait BigQueryTable: BigQueryTableBase {
         if count == 0 {
             Ok(())
         } else {
-            Err(format!(
+            Err(anyhow!(
                 "save should return empty data, but returned {} rows.",
                 count
             )

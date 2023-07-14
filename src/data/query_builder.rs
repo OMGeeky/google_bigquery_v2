@@ -50,7 +50,7 @@ impl<T: Debug> QueryResultType<T> {
         match self {
             QueryResultType::WithRowData(data) => Ok(data),
             QueryResultType::WithoutRowData(_) => {
-                Err(format!("map_err_with_data message:{}", message.into()).into())
+                Err(anyhow!("map_err_with_data message:{}", message.into()))
             }
         }
     }
@@ -61,12 +61,11 @@ impl<T: Debug> QueryResultType<T> {
                 if data.len() == 0 {
                     return Ok(());
                 }
-                return Err(format!(
+                return Err(anyhow!(
                     "map_err_without_data message:'{}' data: {:?}",
                     message.into(),
                     data
-                )
-                .into());
+                ));
             }
         }
     }
@@ -779,7 +778,10 @@ async fn run_query_with_client(
         .await?;
 
     if response.status() != 200 {
-        return Err(format!("Wrong status code returned! ({})", response.status()).into());
+        return Err(anyhow!(
+            "Wrong status code returned! ({})",
+            response.status()
+        ));
     }
 
     Ok((response, query_response))

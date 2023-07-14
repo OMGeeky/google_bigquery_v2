@@ -115,7 +115,7 @@ fn implement_get_parameter_from_field(ast: &DeriveInput, table_ident: &Ident) ->
             google_bigquery_v2::prelude::trace!("get_parameter_from_field(); field_name: '{}' self:{:?}", field_name, self);
             match field_name {
                 #(#fields)*
-                _ => Err(format!("Field {} not found", field_name).into()),
+                _ => Err(google_bigquery_v2::prelude::anyhow!("Field {} not found", field_name).into()),
             }
         }
     }

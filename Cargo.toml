@@ -10,6 +10,8 @@ tokio = "1.0.2"
 google_bigquery_v2_derive = { version = "0.0.2", path = "./google_bigquery_v2_derive" }
 chrono = "0.4.24"
 nameof = "1.2.2"
+anyhow = "1.0"
+thiserror = "1.0"
 env_logger = "0.10.0"
 async-trait = "0.1.68"
 
