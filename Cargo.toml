@@ -1,9 +1,7 @@
 [package]
 name = "google_bigquery_v2"
-version = "0.2.8"
+version = "0.3.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 google-bigquery2 = "5.0.2"
