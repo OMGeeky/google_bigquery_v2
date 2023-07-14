@@ -142,9 +142,10 @@ pub fn convert_value_to_string(value: Value) -> Result<String> {
             Value::Number(num) => Ok(num.to_string()),
             Value::String(s) => Ok(s),
             _ => {
-                warn!("Unknown type: {:?}", value);
                 //TODO: check if this is correct with for example 'DATETIME' values
-                Ok(value.to_string())
+                let values_string = value.to_string();
+                warn!("Unknown type: {:?} => {}", value, values_string);
+                Ok(values_string)
             }
         }
     };
